@@ -52,7 +52,7 @@ function displayExistingFiles(files) {
                     Select
                 </button>
                 <button class="file-delete-btn" onclick="deleteExistingFile('${file.filename}')" title="Delete file">
-                    🗑️
+                    <span class="material-symbols-rounded">delete</span>
                 </button>
             </div>
         </div>
@@ -190,7 +190,10 @@ async function uploadVideo(file) {
 function displayVideoInfo(info) {
     videoInfo.classList.remove('hidden');
     videoInfo.innerHTML = `
-        <h3>✓ Video Selected Successfully</h3>
+        <h3>
+            <span class="material-symbols-rounded">check_circle</span>
+            Video Selected Successfully
+        </h3>
         <div class="info-grid">
             <div class="info-item info-item-filename">
                 <label>Filename</label>
@@ -224,7 +227,9 @@ function displayVideoInfo(info) {
 
 function resetUploadArea() {
     uploadArea.innerHTML = `
-        <div class="upload-icon">📹</div>
+        <div class="upload-icon">
+            <span class="material-symbols-rounded">videocam</span>
+        </div>
         <div class="upload-text">Click to select or drag & drop video file</div>
         <div class="upload-formats">Supported: MP4, AVI, MOV, MKV, WEBM, FLV</div>
     `;
@@ -319,7 +324,8 @@ function displayResults(data) {
             
             <div class="download-actions">
                 <a href="/download-all/${outputDirName}" class="btn btn-download-all">
-                    📦 Download All Frames (ZIP)
+                    <span class="material-symbols-rounded">folder_zip</span>
+                    Download All Frames (ZIP)
                 </a>
             </div>
         </div>
@@ -334,7 +340,7 @@ function displayResults(data) {
                         <a href="/download-frame/${outputDirName}/${frame}" 
                            class="btn-download-frame" 
                            title="Download ${frame}">
-                            ⬇️
+                            <span class="material-symbols-rounded">download</span>
                         </a>
                     </div>
                 </div>
