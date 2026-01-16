@@ -607,6 +607,12 @@ header p {
     white-space: nowrap;
 }
 
+.frame-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}
+
 .btn-download-frame {
     background: var(--ctp-mocha-pink);
     color: var(--ctp-mocha-crust);
@@ -627,6 +633,53 @@ header p {
 .btn-download-frame:hover {
     background: var(--ctp-mocha-mauve);
     transform: scale(1.1);
+}
+
+.btn-delete-frame {
+    background: var(--ctp-mocha-red);
+    color: var(--ctp-mocha-crust);
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+}
+
+.btn-delete-frame .material-symbols-rounded {
+    font-size: 18px;
+}
+
+.btn-delete-frame:hover {
+    background: #eb6f92;
+    transform: scale(1.1);
+}
+
+.btn-delete-all-frames {
+    background: var(--ctp-mocha-red);
+    color: var(--ctp-mocha-crust);
+    padding: 14px 30px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s;
+}
+
+.btn-delete-all-frames .material-symbols-rounded {
+    font-size: 20px;
+}
+
+.btn-delete-all-frames:hover {
+    background: #eb6f92;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 20px rgba(243, 139, 168, 0.4);
 }
 
 /* Info Message */

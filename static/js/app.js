@@ -449,21 +449,32 @@ function displayResults(data) {
                     <span class="material-symbols-rounded">folder_zip</span>
                     Download All Frames (ZIP)
                 </a>
+                <button onclick="deleteAllFrames('${outputDirName}')" class="btn btn-delete-all-frames">
+                    <span class="material-symbols-rounded">delete_sweep</span>
+                    Delete All Frames
+                </button>
             </div>
         </div>
         
         <h3>Preview & Download Individual Frames</h3>
-        <div class="frames-grid">
+        <div class="frames-grid" id="frames-grid-${outputDirName}">
             ${data.frames.map(frame => `
-                <div class="frame-item">
+                <div class="frame-item" id="frame-${escapeHtml(frame).replace(/[^a-zA-Z0-9]/g, '_')}">
                     <img src="/frames/${outputDirName}/${frame}" alt="${frame}">
                     <div class="frame-footer">
                         <div class="frame-name">${frame}</div>
-                        <a href="/download-frame/${outputDirName}/${frame}" 
-                           class="btn-download-frame" 
-                           title="Download ${frame}">
-                            <span class="material-symbols-rounded">download</span>
-                        </a>
+                        <div class="frame-actions">
+                            <a href="/download-frame/${outputDirName}/${frame}" 
+                               class="btn-download-frame" 
+                               title="Download ${frame}">
+                                <span class="material-symbols-rounded">download</span>
+                            </a>
+                            <button onclick="deleteSingleFrame('${outputDirName}', '${escapeHtml(frame)}')" 
+                                    class="btn-delete-frame" 
+                                    title="Delete ${frame}">
+                                <span class="material-symbols-rounded">delete</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
             `).join('')}
@@ -691,4 +702,60 @@ function downloadAsMarkdown(content) {
     URL.revokeObjectURL(url);
     
     showToast('Markdown file downloaded!', 'success');
+}
+
+// Frame Deletion Functions
+async function deleteSingleFrame(jobName, filename) {
+    if (!confirm(`Delete frame "${filename}"?`)) return;
+    
+    try {
+        const response = await fetch(`/delete-frame/${jobName}/${filename}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+        
+        // Remove frame from UI
+        const frameId = `frame-${filename.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const frameElement = document.getElementById(frameId);
+        if (frameElement) {
+            frameElement.style.opacity = '0';
+            frameElement.style.transform = 'scale(0.8)';
+            setTimeout(() => frameElement.remove(), 300);
+        }
+        
+        showToast('Frame deleted successfully', 'success');
+    } catch (error) {
+        showToast('Failed to delete frame: ' + error.message, 'error');
+    }
+}
+
+async function deleteAllFrames(jobName) {
+    if (!confirm(`Delete ALL frames for "${jobName}"? This cannot be undone.`)) return;
+    
+    try {
+        const response = await fetch(`/delete-all-frames/${jobName}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+        
+        // Hide results section
+        resultsSection.style.display = 'none';
+        resultsContent.innerHTML = '';
+        
+        showToast('All frames deleted successfully', 'success');
+    } catch (error) {
+        showToast('Failed to delete frames: ' + error.message, 'error');
+    }
 }

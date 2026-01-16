@@ -22,7 +22,7 @@ ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 
 # Flask app configuration
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates', static_folder='static')
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_FILE_SIZE
@@ -699,6 +699,61 @@ def list_jobs():
                     'path': item_path
                 })
     return jsonify({'jobs': jobs})
+
+
+@app.route('/delete-frame/<path:job_name>/<path:filename>', methods=['DELETE'])
+def delete_single_frame_api(job_name, filename):
+    """Delete a single extracted frame.
+    
+    Args:
+        job_name: Name of the extraction job directory.
+        filename: Name of the frame file to delete.
+    
+    Returns:
+        JSON response with deletion status.
+    """
+    filepath = os.path.join(app.config['OUTPUT_FOLDER'], job_name, filename)
+    
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'Frame not found'}), 404
+    
+    if not filename.endswith('.jpg'):
+        return jsonify({'error': 'Invalid file type'}), 400
+    
+    try:
+        os.remove(filepath)
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {filename}'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete frame: {str(e)}'}), 500
+
+
+@app.route('/delete-all-frames/<path:job_name>', methods=['DELETE'])
+def delete_all_frames_api(job_name):
+    """Delete all extracted frames for a job.
+    
+    Args:
+        job_name: Name of the extraction job directory.
+    
+    Returns:
+        JSON response with deletion status.
+    """
+    job_dir = os.path.join(app.config['OUTPUT_FOLDER'], job_name)
+    
+    if not os.path.exists(job_dir) or not os.path.isdir(job_dir):
+        return jsonify({'error': 'Job not found'}), 404
+    
+    try:
+        import shutil
+        shutil.rmtree(job_dir)
+        return jsonify({
+            'success': True,
+            'message': f'Deleted all frames for {job_name}'
+        })
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete frames: {str(e)}'}), 500
 
 
 # Reka API Endpoints
