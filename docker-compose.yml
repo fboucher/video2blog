@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  extractor:
+    build: .
+    container_name: extractor-web
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./output:/app/output
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
