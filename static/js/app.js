@@ -6,17 +6,12 @@ const videoInput = document.getElementById('video-input');
 const uploadArea = document.getElementById('upload-area');
 const videoInfo = document.getElementById('video-info');
 const existingFilesList = document.getElementById('existing-files-list');
-const modeSection = document.getElementById('mode-section');
 const paramsSection = document.getElementById('params-section');
 const resultsSection = document.getElementById('results-section');
-const sceneParams = document.getElementById('scene-params');
 const timestampParams = document.getElementById('timestamp-params');
 const extractBtn = document.getElementById('extract-btn');
 const progress = document.getElementById('progress');
 const resultsContent = document.getElementById('results-content');
-
-// Mode radio buttons
-const modeRadios = document.querySelectorAll('input[name="mode"]');
 
 // Event Listeners
 videoInput.addEventListener('change', handleFileSelect);
@@ -24,7 +19,6 @@ uploadArea.addEventListener('click', () => videoInput.click());
 uploadArea.addEventListener('dragover', handleDragOver);
 uploadArea.addEventListener('dragleave', handleDragLeave);
 uploadArea.addEventListener('drop', handleDrop);
-modeRadios.forEach(radio => radio.addEventListener('change', handleModeChange));
 extractBtn.addEventListener('click', handleExtraction);
 
 // Load existing files on page load
@@ -53,9 +47,14 @@ function displayExistingFiles(files) {
                 <div class="file-name">${file.filename}</div>
                 <div class="file-meta">${formatFileSize(file.size)} • ${formatDate(file.modified)}</div>
             </div>
-            <button class="file-select-btn" onclick="selectExistingFile('${file.filename}')">
-                Select
-            </button>
+            <div class="file-actions">
+                <button class="file-select-btn" onclick="selectExistingFile('${file.filename}')">
+                    Select
+                </button>
+                <button class="file-delete-btn" onclick="deleteExistingFile('${file.filename}')" title="Delete file">
+                    🗑️
+                </button>
+            </div>
         </div>
     `).join('');
 }
@@ -79,7 +78,6 @@ async function selectExistingFile(filename) {
         
         currentVideoInfo = data;
         displayVideoInfo(data);
-        modeSection.style.display = 'block';
         paramsSection.style.display = 'block';
         
         // Highlight selected file
@@ -90,6 +88,43 @@ async function selectExistingFile(filename) {
         
     } catch (error) {
         showError('Failed to select file: ' + error.message);
+    }
+}
+
+async function deleteExistingFile(filename) {
+    if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/delete-file', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ filename: filename })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showError(data.error);
+            return;
+        }
+        
+        // Reload the file list
+        loadExistingFiles();
+        
+        // Clear video info if the deleted file was selected
+        if (currentVideoInfo && currentVideoInfo.filename === filename) {
+            currentVideoInfo = null;
+            videoInfo.classList.add('hidden');
+            paramsSection.style.display = 'none';
+            resultsSection.style.display = 'none';
+        }
+        
+    } catch (error) {
+        showError('Failed to delete file: ' + error.message);
     }
 }
 
@@ -142,9 +177,8 @@ async function uploadVideo(file) {
             return;
         }
         
-        currentVideoInfo = data;
-        displayVideoInfo(data);
-        modeSection.style.display = 'block';
+        currentVideoInfo = currentVideoInfo;
+        displayVideoInfo(currentVideoInfo);
         paramsSection.style.display = 'block';
         
     } catch (error) {
@@ -156,11 +190,11 @@ async function uploadVideo(file) {
 function displayVideoInfo(info) {
     videoInfo.classList.remove('hidden');
     videoInfo.innerHTML = `
-        <h3>✓ Video Uploaded Successfully</h3>
+        <h3>✓ Video Selected Successfully</h3>
         <div class="info-grid">
-            <div class="info-item">
+            <div class="info-item info-item-filename">
                 <label>Filename</label>
-                <strong>${info.filename}</strong>
+                <strong title="${info.filename}">${info.filename}</strong>
             </div>
             <div class="info-item">
                 <label>Duration</label>
@@ -196,44 +230,40 @@ function resetUploadArea() {
     `;
 }
 
-// Mode Change Handler
-function handleModeChange(event) {
-    const mode = event.target.value;
-    
-    if (mode === 'scene') {
-        sceneParams.classList.remove('hidden');
-        timestampParams.classList.add('hidden');
-    } else {
-        sceneParams.classList.add('hidden');
-        timestampParams.classList.remove('hidden');
-    }
-}
-
 // Extraction Handler
 async function handleExtraction() {
     if (!currentVideoInfo) {
-        showError('Please upload a video first');
+        showError('Please select a video first');
         return;
     }
     
-    const mode = document.querySelector('input[name="mode"]:checked').value;
+    const timestampsInput = document.getElementById('timestamps').value;
+    
+    if (!timestampsInput) {
+        showError('Please enter timestamps');
+        return;
+    }
+    
+    // Parse timestamps and convert to floats (supports both integers and decimals)
+    let timestamps;
+    try {
+        timestamps = timestampsInput.split(',').map(ts => {
+            const num = parseFloat(ts.trim());
+            if (isNaN(num)) {
+                throw new Error(`Invalid timestamp: ${ts.trim()}`);
+            }
+            return num;
+        }).join(',');
+    } catch (error) {
+        showError(error.message);
+        return;
+    }
     
     const params = {
         filepath: currentVideoInfo.filepath,
-        mode: mode
-    };
-    
-    if (mode === 'scene') {
-        params.threshold = parseFloat(document.getElementById('threshold').value);
-        params.max_frames = parseInt(document.getElementById('max-frames').value);
-    } else {
-        params.timestamps = document.getElementById('timestamps').value;
-        params.frames_per_timestamp = parseInt(document.getElementById('frames-per-timestamp').value);
-        
-        if (!params.timestamps) {
-            showError('Please enter timestamps');
-            return;
-        }
+        mode: 'timestamp',
+        timestamps: timestamps,
+        frames_per_timestamp: parseInt(document.getElementById('frames-per-timestamp').value)
     }
     
     try {

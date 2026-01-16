@@ -120,6 +120,31 @@ def select_file():
     })
 
 
+@app.route('/delete-file', methods=['POST'])
+def delete_file():
+    """Delete a video file from uploads folder.
+    
+    Returns:
+        JSON response with deletion status.
+    """
+    data = request.json
+    
+    if not data or 'filename' not in data:
+        return jsonify({'error': 'No filename provided'}), 400
+    
+    filename = data['filename']
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'File not found'}), 404
+    
+    try:
+        os.remove(filepath)
+        return jsonify({'success': True, 'message': f'Deleted {filename}'})
+    except Exception as e:
+        return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     """Handle video file upload.

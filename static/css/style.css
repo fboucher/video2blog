@@ -103,6 +103,12 @@ header p {
     color: #999;
 }
 
+.file-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
 .file-select-btn {
     background: #667eea;
     color: white;
@@ -116,6 +122,25 @@ header p {
 
 .file-select-btn:hover {
     background: #5568d3;
+}
+
+.file-delete-btn {
+    background: #e74c3c;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-delete-btn:hover {
+    background: #c0392b;
+    transform: scale(1.1);
 }
 
 .no-files-message {
@@ -208,6 +233,7 @@ header p {
 .info-item {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
 .info-item label {
@@ -219,6 +245,18 @@ header p {
 .info-item strong {
     font-size: 1.1rem;
     color: #333;
+}
+
+.info-item-filename {
+    grid-column: 1 / -1;
+}
+
+.info-item-filename strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+    max-width: 100%;
 }
 
 /* Mode Selector */
