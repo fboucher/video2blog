@@ -42,9 +42,25 @@
                 <div id="video-info" class="video-info hidden"></div>
             </section>
 
-            <!-- Step 2: Configure Parameters -->
+            <!-- Step 2: Ask Questions About Video -->
+            <section class="card" id="chat-section" style="display: none;">
+                <h2>
+                    <span class="material-symbols-rounded" style="vertical-align: middle;">chat</span>
+                    Step 2: Ask Questions About This Video
+                </h2>
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Ask a question about the video..." />
+                    <button id="chat-send-btn" class="btn btn-primary">
+                        <span class="material-symbols-rounded">send</span>
+                        Send
+                    </button>
+                </div>
+            </section>
+
+            <!-- Step 3: Configure Extraction -->
             <section class="card" id="params-section" style="display: none;">
-                <h2>Step 2: Configure Extraction</h2>
+                <h2>Step 3: Configure Extraction</h2>
                 
                 <!-- Timestamp Parameters -->
                 <div id="timestamp-params" class="params-group">
@@ -63,30 +79,14 @@
                 <button id="extract-btn" class="btn btn-primary">Extract Frames</button>
             </section>
 
-            <!-- Step 3: Results -->
+            <!-- Step 4: Extraction Results -->
             <section class="card" id="results-section" style="display: none;">
-                <h2>Extraction Results</h2>
+                <h2>Step 4: Extraction Results</h2>
                 <div id="progress" class="progress hidden">
                     <div class="spinner"></div>
                     <p>Processing video...</p>
                 </div>
                 <div id="results-content" class="results-content hidden"></div>
-            </section>
-
-            <!-- Reka Q&A Chat Section -->
-            <section class="card" id="chat-section" style="display: none;">
-                <h2>
-                    <span class="material-symbols-rounded" style="vertical-align: middle;">chat</span>
-                    Ask Questions About This Video
-                </h2>
-                <div id="chat-messages" class="chat-messages"></div>
-                <div class="chat-input-area">
-                    <input type="text" id="chat-input" placeholder="Ask a question about the video..." />
-                    <button id="chat-send-btn" class="btn btn-primary">
-                        <span class="material-symbols-rounded">send</span>
-                        Send
-                    </button>
-                </div>
             </section>
         </main>
     </div>

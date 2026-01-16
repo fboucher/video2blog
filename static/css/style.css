@@ -837,6 +837,9 @@ header p {
     color: var(--ctp-mocha-text);
     border: 1px solid var(--ctp-mocha-overlay0);
     border-bottom-left-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
 }
 
 .chat-message.error {
@@ -1250,4 +1253,31 @@ header p {
 
 .prompt-body .btn .material-symbols-rounded {
     font-size: 20px;
+}
+
+/* Download Markdown Button */
+.download-md-btn {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--ctp-mocha-pink);
+    color: var(--ctp-mocha-crust);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.download-md-btn:hover {
+    background: var(--ctp-mocha-mauve);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(245, 194, 231, 0.3);
+}
+
+.download-md-btn .material-symbols-rounded {
+    font-size: 16px;
 }

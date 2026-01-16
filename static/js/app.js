@@ -188,10 +188,10 @@ async function selectVideo(video) {
         </div>
     `;
     
-    // Show chat section for Q&A
-    paramsSection.style.display = 'none';
-    resultsSection.style.display = 'none';
+    // Show chat section for Q&A and extraction section
     chatSection.style.display = 'block';
+    paramsSection.style.display = 'block';
+    resultsSection.style.display = 'none';
     chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
     chatInput.value = DEFAULT_QUESTION;
     chatInput.focus();
@@ -625,57 +625,12 @@ async function sendChatMessage() {
         chatMessages.push({ role: 'user', content: question });
         chatMessages.push({ role: 'assistant', content: answer });
         
-        // Add "Extract Frames" button after first response if this is the default question
-        if (chatMessages.length === 2 && question.includes('suggest 3 timestamps')) {
-            addExtractionPrompt(answer);
-        }
-        
     } catch (error) {
         loadingDiv.remove();
         addChatMessage('error', 'Failed to get response: ' + error.message);
     } finally {
         chatSendBtn.disabled = false;
     }
-}
-
-function addExtractionPrompt(answer) {
-    // Parse timestamps from answer
-    const timestampMatches = answer.match(/\b\d+\.?\d*\b/g);
-    
-    if (timestampMatches && timestampMatches.length >= 3) {
-        const suggestedTimestamps = timestampMatches.slice(0, 3).join(', ');
-        
-        const promptDiv = document.createElement('div');
-        promptDiv.className = 'extraction-prompt';
-        promptDiv.innerHTML = `
-            <div class="prompt-header">
-                <span class="material-symbols-rounded">frame_inspect</span>
-                Ready to extract frames?
-            </div>
-            <div class="prompt-body">
-                <p>Suggested timestamps: <strong>${suggestedTimestamps}</strong></p>
-                <button class="btn btn-primary" onclick="switchToFrameExtraction('${suggestedTimestamps}')">
-                    <span class="material-symbols-rounded">play_arrow</span>
-                    Extract Frames at These Timestamps
-                </button>
-            </div>
-        `;
-        chatMessagesDiv.appendChild(promptDiv);
-        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
-    }
-}
-
-function switchToFrameExtraction(timestamps) {
-    // Show params section
-    paramsSection.style.display = 'block';
-    
-    // Fill in timestamps
-    document.getElementById('timestamps').value = timestamps;
-    
-    // Scroll to params section
-    paramsSection.scrollIntoView({ behavior: 'smooth' });
-    
-    showToast('Ready to extract frames! Click "Extract Frames" when ready.', 'success');
 }
 
 function addChatMessage(role, content) {
@@ -696,6 +651,10 @@ function addChatMessage(role, content) {
     } else if (role === 'assistant') {
         messageDiv.innerHTML = `
             <div class="message-content">${formattedContent}</div>
+            <button class="download-md-btn" onclick='downloadAsMarkdown(${JSON.stringify(content).replace(/'/g, "&#39;")})' title="Download as Markdown">
+                <span class="material-symbols-rounded">download</span>
+                <span>Download MD</span>
+            </button>
         `;
     } else if (role === 'error') {
         messageDiv.innerHTML = `
@@ -708,4 +667,28 @@ function addChatMessage(role, content) {
     
     chatMessagesDiv.appendChild(messageDiv);
     chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+}
+
+function downloadAsMarkdown(content) {
+    // Create blob from content
+    const blob = new Blob([content], { type: 'text/markdown' });
+    
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+    const videoName = currentVideo?.name?.replace(/[^a-z0-9]/gi, '_').toLowerCase() || 'video';
+    const filename = `${videoName}_answer_${timestamp}.md`;
+    
+    // Create download link and trigger download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    
+    // Cleanup
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('Markdown file downloaded!', 'success');
 }
