@@ -19,31 +19,23 @@
             <section class="card" id="upload-section">
                 <h2>Step 1: Select or Upload Video</h2>
                 
-                <!-- Existing Files -->
-                <div id="existing-files-section">
-                    <h3>Existing Files</h3>
-                    <div id="existing-files-list" class="existing-files-list">
-                        <div class="loading-files">Loading files...</div>
-                    </div>
+                <!-- Compact Upload Area -->
+                <div class="upload-area-compact">
+                    <input type="file" id="video-input" accept="video/*" hidden>
+                    <label for="video-input" class="upload-label-compact">
+                        <span class="material-symbols-rounded">upload_file</span>
+                        <span>Upload New Video</span>
+                    </label>
                 </div>
                 
-                <!-- Divider -->
-                <div class="section-divider">
-                    <span>OR</span>
-                </div>
-                
-                <!-- Upload New File -->
-                <div>
-                    <h3>Upload New File</h3>
-                    <div class="upload-area" id="upload-area">
-                        <input type="file" id="video-input" accept="video/*" hidden>
-                        <label for="video-input" class="upload-label">
-                            <div class="upload-icon">
-                                <span class="material-symbols-rounded">videocam</span>
-                            </div>
-                            <div class="upload-text">Click to select or drag & drop video file</div>
-                            <div class="upload-formats">Supported: MP4, AVI, MOV, MKV, WEBM, FLV</div>
-                        </label>
+                <!-- Unified Video List -->
+                <div id="videos-section">
+                    <h3>
+                        <span class="material-symbols-rounded" style="vertical-align: middle;">video_library</span>
+                        Your Videos
+                    </h3>
+                    <div id="videos-list" class="videos-list">
+                        <div class="loading-files">Loading videos...</div>
                     </div>
                 </div>
                 
@@ -80,8 +72,27 @@
                 </div>
                 <div id="results-content" class="results-content hidden"></div>
             </section>
+
+            <!-- Reka Q&A Chat Section -->
+            <section class="card" id="chat-section" style="display: none;">
+                <h2>
+                    <span class="material-symbols-rounded" style="vertical-align: middle;">chat</span>
+                    Ask Questions About This Video
+                </h2>
+                <div id="chat-messages" class="chat-messages"></div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Ask a question about the video..." />
+                    <button id="chat-send-btn" class="btn btn-primary">
+                        <span class="material-symbols-rounded">send</span>
+                        Send
+                    </button>
+                </div>
+            </section>
         </main>
     </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>

@@ -1,130 +1,310 @@
-// Global state
-let currentVideoInfo = null;
+// Global state - Unified video object
+let currentVideo = null;
+let chatMessages = [];
+
+// Default question template
+const DEFAULT_QUESTION = "Write a blog post covering the topic of the video, like you where the person presenting. Write it in markdown using simple English. Before the post, suggest 3 timestamps (in seconds) that could be interesting for the reader";
+
+// Helper function: fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeoutMs = 120000) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(timeout);
+        return response;
+    } catch (error) {
+        clearTimeout(timeout);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timed out after 2 minutes');
+        }
+        throw error;
+    }
+}
 
 // DOM Elements
 const videoInput = document.getElementById('video-input');
-const uploadArea = document.getElementById('upload-area');
 const videoInfo = document.getElementById('video-info');
-const existingFilesList = document.getElementById('existing-files-list');
+const videosList = document.getElementById('videos-list');
 const paramsSection = document.getElementById('params-section');
 const resultsSection = document.getElementById('results-section');
+const chatSection = document.getElementById('chat-section');
 const timestampParams = document.getElementById('timestamp-params');
 const extractBtn = document.getElementById('extract-btn');
 const progress = document.getElementById('progress');
 const resultsContent = document.getElementById('results-content');
+const chatMessagesDiv = document.getElementById('chat-messages');
+const chatInput = document.getElementById('chat-input');
+const chatSendBtn = document.getElementById('chat-send-btn');
 
 // Event Listeners
 videoInput.addEventListener('change', handleFileSelect);
-uploadArea.addEventListener('click', () => videoInput.click());
-uploadArea.addEventListener('dragover', handleDragOver);
-uploadArea.addEventListener('dragleave', handleDragLeave);
-uploadArea.addEventListener('drop', handleDrop);
 extractBtn.addEventListener('click', handleExtraction);
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendChatMessage();
+});
 
-// Load existing files on page load
-loadExistingFiles();
+// Load all videos on page load
+loadAllVideos();
 
-// Load Existing Files
-async function loadExistingFiles() {
+// Unified Video List Functions
+async function loadAllVideos() {
     try {
-        const response = await fetch('/list-uploads');
+        const response = await fetch('/videos/list');
         const data = await response.json();
         
-        if (data.files && data.files.length > 0) {
-            displayExistingFiles(data.files);
+        if (data.videos && data.videos.length > 0) {
+            displayUnifiedVideoList(data.videos);
         } else {
-            existingFilesList.innerHTML = '<div class="no-files-message">No existing files found. Upload a new file below.</div>';
+            videosList.innerHTML = '<div class="no-files-message">No videos found. Upload a new video above.</div>';
         }
     } catch (error) {
-        existingFilesList.innerHTML = '<div class="no-files-message">Error loading files.</div>';
+        videosList.innerHTML = '<div class="no-files-message">Error loading videos.</div>';
+        showToast('Error loading videos', 'error');
     }
 }
 
-function displayExistingFiles(files) {
-    existingFilesList.innerHTML = files.map(file => `
-        <div class="file-item" data-filename="${file.filename}">
-            <div class="file-info">
-                <div class="file-name">${file.filename}</div>
-                <div class="file-meta">${formatFileSize(file.size)} • ${formatDate(file.modified)}</div>
+function displayUnifiedVideoList(videos) {
+    videosList.innerHTML = videos.map(video => {
+        const sourceIcons = {
+            'synced': { icon: 'sync', color: 'var(--ctp-mocha-green)', title: 'Synced (Reka + Local)' },
+            'reka_only': { icon: 'cloud', color: 'var(--ctp-mocha-blue)', title: 'Reka Only' },
+            'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' }
+        };
+        
+        const sourceInfo = sourceIcons[video.source];
+        const statusBadge = getStatusBadge(video);
+        
+        return `
+        <div class="unified-video-item ${!video.can_select ? 'disabled' : ''}" data-video-id="${video.id}">
+            <div class="video-item-header">
+                <span class="sync-icon ${video.source}" title="${sourceInfo.title}">
+                    <span class="material-symbols-rounded" style="color: ${sourceInfo.color};">${sourceInfo.icon}</span>
+                </span>
+                <div class="video-name">${escapeHtml(video.name)}</div>
+                ${statusBadge}
             </div>
-            <div class="file-actions">
-                <button class="file-select-btn" onclick="selectExistingFile('${file.filename}')">
-                    Select
-                </button>
-                <button class="file-delete-btn" onclick="deleteExistingFile('${file.filename}')" title="Delete file">
-                    <span class="material-symbols-rounded">delete</span>
-                </button>
+            <div class="video-item-meta">
+                ${video.duration ? `<span>${formatDuration(video.duration)}</span>` : ''}
+                ${video.size ? `<span>${formatFileSize(video.size)}</span>` : ''}
+            </div>
+            <div class="video-item-actions">
+                ${video.can_select ? `
+                    <button class="file-select-btn" onclick='selectVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})'>
+                        <span class="material-symbols-rounded">play_circle</span>
+                        Select
+                    </button>
+                ` : `
+                    <button class="file-select-btn" disabled title="Video must be synced and indexed">
+                        <span class="material-symbols-rounded">play_circle</span>
+                        Select
+                    </button>
+                `}
+                ${video.can_download ? `
+                    <button class="file-action-btn" onclick='downloadVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Download to local">
+                        <span class="material-symbols-rounded">download</span>
+                    </button>
+                ` : ''}
+                ${video.can_refresh_status ? `
+                    <button class="file-action-btn" onclick="refreshStatus('${video.reka_video_id}')" title="Refresh indexing status">
+                        <span class="material-symbols-rounded">refresh</span>
+                    </button>
+                ` : ''}
+                ${video.can_delete_local ? `
+                    <button class="file-delete-btn" onclick="deleteLocal('${escapeHtml(video.local_filename)}')" title="Delete local copy">
+                        <span class="material-symbols-rounded">delete</span>
+                    </button>
+                ` : ''}
+                ${video.can_delete_reka && !video.can_delete_local ? `
+                    <button class="file-delete-btn" onclick="deleteReka('${video.reka_video_id}')" title="Delete from Reka">
+                        <span class="material-symbols-rounded">delete</span>
+                    </button>
+                ` : ''}
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
-async function selectExistingFile(filename) {
+function getStatusBadge(video) {
+    if (!video.reka_indexing_status) return '';
+    
+    const badges = {
+        'indexed': { class: 'badge-green', text: 'Indexed', icon: 'check_circle' },
+        'indexing': { class: 'badge-yellow', text: 'Indexing...', icon: 'sync' },
+        'failed': { class: 'badge-red', text: 'Failed', icon: 'error' },
+        'unknown': { class: 'badge-gray', text: 'Unknown', icon: 'help' }
+    };
+    
+    const badge = badges[video.reka_indexing_status] || badges.unknown;
+    
+    return `
+        <span class="badge ${badge.class}">
+            <span class="material-symbols-rounded">${badge.icon}</span>
+            ${badge.text}
+        </span>
+    `;
+}
+
+async function selectVideo(video) {
+    currentVideo = video;
+    chatMessages = [];
+    
+    // Clear previous selections
+    document.querySelectorAll('.unified-video-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    document.querySelector(`.unified-video-item[data-video-id="${video.id}"]`)?.classList.add('selected');
+    
+    // Show video info
+    videoInfo.classList.remove('hidden');
+    videoInfo.innerHTML = `
+        <h3>
+            <span class="material-symbols-rounded">check_circle</span>
+            Video Selected
+        </h3>
+        <div class="info-grid">
+            <div class="info-item info-item-filename">
+                <label>Name</label>
+                <strong title="${escapeHtml(video.name)}">${escapeHtml(video.name)}</strong>
+            </div>
+            ${video.duration ? `
+            <div class="info-item">
+                <label>Duration</label>
+                <strong>${formatDuration(video.duration)}</strong>
+            </div>
+            ` : ''}
+            ${video.fps ? `
+            <div class="info-item">
+                <label>FPS</label>
+                <strong>${video.fps.toFixed(2)}</strong>
+            </div>
+            ` : ''}
+        </div>
+    `;
+    
+    // Show chat section for Q&A
+    paramsSection.style.display = 'none';
+    resultsSection.style.display = 'none';
+    chatSection.style.display = 'block';
+    chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
+    chatInput.value = DEFAULT_QUESTION;
+    chatInput.focus();
+}
+
+async function downloadVideo(video) {
+    showToast('Downloading video...', 'info');
+    
     try {
-        const response = await fetch('/select-file', {
+        const response = await fetch('/videos/download', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ filename: filename })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                reka_video_id: video.reka_video_id,
+                video_url: video.reka_url,
+                video_name: video.name,
+                reka_indexing_status: video.reka_indexing_status
+            })
         });
         
         const data = await response.json();
         
         if (data.error) {
-            showError(data.error);
+            showToast(data.error, 'error');
             return;
         }
         
-        currentVideoInfo = data;
-        displayVideoInfo(data);
-        paramsSection.style.display = 'block';
-        
-        // Highlight selected file
-        document.querySelectorAll('.file-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-        document.querySelector(`.file-item[data-filename="${filename}"]`)?.classList.add('selected');
-        
+        showToast('Video downloaded successfully!', 'success');
+        loadAllVideos();
     } catch (error) {
-        showError('Failed to select file: ' + error.message);
+        showToast('Download failed: ' + error.message, 'error');
     }
 }
 
-async function deleteExistingFile(filename) {
-    if (!confirm(`Are you sure you want to delete "${filename}"?`)) {
-        return;
+async function refreshStatus(rekaVideoId) {
+    try {
+        const response = await fetch(`/reka/refresh-status/${rekaVideoId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+        
+        showToast(`Status updated: ${data.indexing_status}`, 'success');
+        loadAllVideos();
+    } catch (error) {
+        showToast('Failed to refresh status', 'error');
     }
+}
+
+async function deleteLocal(filename) {
+    if (!confirm(`Delete local copy of "${filename}"?`)) return;
     
     try {
         const response = await fetch('/delete-file', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename: filename })
         });
         
         const data = await response.json();
         
         if (data.error) {
-            showError(data.error);
+            showToast(data.error, 'error');
             return;
         }
         
-        // Reload the file list
-        loadExistingFiles();
+        showToast('Local file deleted', 'success');
+        loadAllVideos();
         
-        // Clear video info if the deleted file was selected
-        if (currentVideoInfo && currentVideoInfo.filename === filename) {
-            currentVideoInfo = null;
+        // Clear selection if deleted
+        if (currentVideo && currentVideo.local_filename === filename) {
+            currentVideo = null;
             videoInfo.classList.add('hidden');
+            chatSection.style.display = 'none';
             paramsSection.style.display = 'none';
-            resultsSection.style.display = 'none';
+        }
+    } catch (error) {
+        showToast('Failed to delete file', 'error');
+    }
+}
+
+async function deleteReka(rekaVideoId) {
+    if (!confirm('Delete this video from Reka?')) return;
+    
+    try {
+        const response = await fetch(`/reka/delete/${rekaVideoId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
         }
         
+        showToast('Reka video deleted', 'success');
+        loadAllVideos();
+        
+        // Clear selection if deleted
+        if (currentVideo && currentVideo.reka_video_id === rekaVideoId) {
+            currentVideo = null;
+            videoInfo.classList.add('hidden');
+            chatSection.style.display = 'none';
+            paramsSection.style.display = 'none';
+        }
     } catch (error) {
-        showError('Failed to delete file: ' + error.message);
+        showToast('Failed to delete video', 'error');
     }
 }
 
@@ -136,33 +316,12 @@ function handleFileSelect(event) {
     }
 }
 
-function handleDragOver(event) {
-    event.preventDefault();
-    uploadArea.classList.add('dragover');
-}
-
-function handleDragLeave(event) {
-    event.preventDefault();
-    uploadArea.classList.remove('dragover');
-}
-
-function handleDrop(event) {
-    event.preventDefault();
-    uploadArea.classList.remove('dragover');
-    
-    const file = event.dataTransfer.files[0];
-    if (file) {
-        uploadVideo(file);
-    }
-}
-
 async function uploadVideo(file) {
     const formData = new FormData();
     formData.append('video', file);
     
     try {
-        // Show uploading state
-        uploadArea.innerHTML = '<div class="spinner"></div><p>Uploading...</p>';
+        showToast('Uploading video...', 'info');
         
         const response = await fetch('/upload', {
             method: 'POST',
@@ -172,84 +331,46 @@ async function uploadVideo(file) {
         const data = await response.json();
         
         if (data.error) {
-            showError(data.error);
-            resetUploadArea();
+            showToast(data.error, 'error');
             return;
         }
         
-        currentVideoInfo = currentVideoInfo;
-        displayVideoInfo(currentVideoInfo);
-        paramsSection.style.display = 'block';
+        // Show success and auto-upload info
+        if (data.reka_synced) {
+            showToast('Video uploaded and synced to Reka!', 'success');
+        } else {
+            showToast('Video uploaded successfully!', 'success');
+            if (data.reka_upload_error) {
+                showToast('Reka sync failed: ' + data.reka_upload_error, 'warning');
+            }
+        }
+        
+        // Reload video list
+        loadAllVideos();
+        
+        // Reset file input
+        videoInput.value = '';
         
     } catch (error) {
-        showError('Upload failed: ' + error.message);
-        resetUploadArea();
+        showToast('Upload failed: ' + error.message, 'error');
     }
-}
-
-function displayVideoInfo(info) {
-    videoInfo.classList.remove('hidden');
-    videoInfo.innerHTML = `
-        <h3>
-            <span class="material-symbols-rounded">check_circle</span>
-            Video Selected Successfully
-        </h3>
-        <div class="info-grid">
-            <div class="info-item info-item-filename">
-                <label>Filename</label>
-                <strong title="${info.filename}">${info.filename}</strong>
-            </div>
-            <div class="info-item">
-                <label>Duration</label>
-                <strong>${formatDuration(info.duration)}</strong>
-            </div>
-            <div class="info-item">
-                <label>FPS</label>
-                <strong>${info.fps.toFixed(2)}</strong>
-            </div>
-            <div class="info-item">
-                <label>Resolution</label>
-                <strong>${info.width}x${info.height}</strong>
-            </div>
-            <div class="info-item">
-                <label>Total Frames</label>
-                <strong>${info.total_frames.toLocaleString()}</strong>
-            </div>
-        </div>
-    `;
-    
-    uploadArea.innerHTML = `
-        <div class="upload-icon">✓</div>
-        <div class="upload-text">${info.filename}</div>
-        <div class="upload-formats">Click to upload a different video</div>
-    `;
-}
-
-function resetUploadArea() {
-    uploadArea.innerHTML = `
-        <div class="upload-icon">
-            <span class="material-symbols-rounded">videocam</span>
-        </div>
-        <div class="upload-text">Click to select or drag & drop video file</div>
-        <div class="upload-formats">Supported: MP4, AVI, MOV, MKV, WEBM, FLV</div>
-    `;
 }
 
 // Extraction Handler
 async function handleExtraction() {
-    if (!currentVideoInfo) {
-        showError('Please select a video first');
+    if (!currentVideo || !currentVideo.local_filepath) {
+        showToast('Please select a video with local copy first', 'error');
         return;
     }
     
     const timestampsInput = document.getElementById('timestamps').value;
     
     if (!timestampsInput) {
-        showError('Please enter timestamps');
+        showToast('Please enter timestamps', 'error');
         return;
     }
     
-    // Parse timestamps and convert to floats (supports both integers and decimals)
+    // Parse timestamps and convert to floats
     let timestamps;
     try {
         timestamps = timestampsInput.split(',').map(ts => {
@@ -260,12 +381,12 @@ async function handleExtraction() {
             return num;
         }).join(',');
     } catch (error) {
-        showError(error.message);
+        showToast(error.message, 'error');
         return;
     }
     
     const params = {
-        filepath: currentVideoInfo.filepath,
+        filepath: currentVideo.local_filepath,
         mode: 'timestamp',
         timestamps: timestamps,
         frames_per_timestamp: parseInt(document.getElementById('frames-per-timestamp').value)
@@ -289,14 +410,15 @@ async function handleExtraction() {
         const data = await response.json();
         
         if (data.error) {
-            showError(data.error);
+            showToast(data.error, 'error');
             return;
         }
         
         displayResults(data);
+        showToast('Frames extracted successfully!', 'success');
         
     } catch (error) {
-        showError('Extraction failed: ' + error.message);
+        showToast('Extraction failed: ' + error.message, 'error');
     } finally {
         extractBtn.disabled = false;
         progress.classList.add('hidden');
@@ -391,19 +513,199 @@ function formatDate(timestamp) {
     return date.toLocaleDateString();
 }
 
-function showError(message) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'error';
-    errorDiv.textContent = message;
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
     
-    resultsContent.innerHTML = '';
-    resultsContent.appendChild(errorDiv);
-    resultsContent.classList.remove('hidden');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
     
+    const icons = {
+        'success': 'check_circle',
+        'error': 'error',
+        'warning': 'warning',
+        'info': 'info'
+    };
+    
+    toast.innerHTML = `
+        <span class="material-symbols-rounded">${icons[type] || 'info'}</span>
+        <span>${escapeHtml(message)}</span>
+    `;
+    
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remove after 4 seconds
     setTimeout(() => {
-        errorDiv.remove();
-        if (resultsContent.children.length === 0) {
-            resultsContent.classList.add('hidden');
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
+
+function showError(message) {
+    showToast(message, 'error');
+}
+
+// Chat Functions
+async function sendChatMessage() {
+    if (!currentVideo || !currentVideo.reka_video_id) {
+        showToast('Please select a video with Reka sync first', 'error');
+        return;
+    }
+    
+    const question = chatInput.value.trim();
+    if (!question) return;
+    
+    // Add user message to chat
+    addChatMessage('user', question);
+    chatInput.value = '';
+    chatSendBtn.disabled = true;
+    
+    // Add loading indicator
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'chat-message assistant loading';
+    loadingDiv.innerHTML = '<div class="spinner-small"></div><p>Thinking...</p>';
+    chatMessagesDiv.appendChild(loadingDiv);
+    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    
+    try {
+        const response = await fetchWithTimeout('/reka/ask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                video_id: currentVideo.reka_video_id,
+                question: question,
+                messages: chatMessages
+            })
+        }, 120000); // 2 minutes timeout
+        
+        const data = await response.json();
+        
+        // Remove loading indicator
+        loadingDiv.remove();
+        
+        if (data.error) {
+            addChatMessage('error', data.error);
+            return;
         }
-    }, 5000);
+        
+        // Extract answer from response
+        let answer = 'No response received';
+        
+        if (data.data?.chat_response) {
+            try {
+                const chatResponse = JSON.parse(data.data.chat_response);
+                if (chatResponse.sections && chatResponse.sections.length > 0) {
+                    answer = chatResponse.sections
+                        .filter(s => s.section_type === 'markdown')
+                        .map(s => s.markdown)
+                        .join('\n\n');
+                }
+            } catch (e) {
+                answer = data.data.chat_response;
+            }
+        } else if (data.data?.answer) {
+            answer = data.data.answer;
+        }
+        
+        // Add assistant message
+        addChatMessage('assistant', answer);
+        
+        // Update chat history
+        chatMessages.push({ role: 'user', content: question });
+        chatMessages.push({ role: 'assistant', content: answer });
+        
+        // Add "Extract Frames" button after first response if this is the default question
+        if (chatMessages.length === 2 && question.includes('suggest 3 timestamps')) {
+            addExtractionPrompt(answer);
+        }
+        
+    } catch (error) {
+        loadingDiv.remove();
+        addChatMessage('error', 'Failed to get response: ' + error.message);
+    } finally {
+        chatSendBtn.disabled = false;
+    }
+}
+
+function addExtractionPrompt(answer) {
+    // Parse timestamps from answer
+    const timestampMatches = answer.match(/\b\d+\.?\d*\b/g);
+    
+    if (timestampMatches && timestampMatches.length >= 3) {
+        const suggestedTimestamps = timestampMatches.slice(0, 3).join(', ');
+        
+        const promptDiv = document.createElement('div');
+        promptDiv.className = 'extraction-prompt';
+        promptDiv.innerHTML = `
+            <div class="prompt-header">
+                <span class="material-symbols-rounded">frame_inspect</span>
+                Ready to extract frames?
+            </div>
+            <div class="prompt-body">
+                <p>Suggested timestamps: <strong>${suggestedTimestamps}</strong></p>
+                <button class="btn btn-primary" onclick="switchToFrameExtraction('${suggestedTimestamps}')">
+                    <span class="material-symbols-rounded">play_arrow</span>
+                    Extract Frames at These Timestamps
+                </button>
+            </div>
+        `;
+        chatMessagesDiv.appendChild(promptDiv);
+        chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    }
+}
+
+function switchToFrameExtraction(timestamps) {
+    // Show params section
+    paramsSection.style.display = 'block';
+    
+    // Fill in timestamps
+    document.getElementById('timestamps').value = timestamps;
+    
+    // Scroll to params section
+    paramsSection.scrollIntoView({ behavior: 'smooth' });
+    
+    showToast('Ready to extract frames! Click "Extract Frames" when ready.', 'success');
+}
+
+function addChatMessage(role, content) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${role}`;
+    
+    // Format content - preserve line breaks and basic formatting
+    const formattedContent = content
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/```(.*?)```/gs, '<pre>$1</pre>');
+    
+    if (role === 'user') {
+        messageDiv.innerHTML = `
+            <div class="message-content">${formattedContent}</div>
+        `;
+    } else if (role === 'assistant') {
+        messageDiv.innerHTML = `
+            <div class="message-content">${formattedContent}</div>
+        `;
+    } else if (role === 'error') {
+        messageDiv.innerHTML = `
+            <div class="message-icon">
+                <span class="material-symbols-rounded">error</span>
+            </div>
+            <div class="message-content">${formattedContent}</div>
+        `;
+    }
+    
+    chatMessagesDiv.appendChild(messageDiv);
+    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
 }
