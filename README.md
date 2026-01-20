@@ -1,4 +1,4 @@
-# Keyframe Extractor
+# Video 2 Blog
 
 A Python application with a web interface to extract keyframes from video files using OpenCV. Run in a Docker/Podman container for easy deployment.
 
