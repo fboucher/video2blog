@@ -1,4 +1,6 @@
-# Video2Blog
+
+# Video 2 Blog
+
 
 A Python application that extracts keyframes from videos and generates blog posts using AI vision models.
 
@@ -46,3 +48,4 @@ Create a `.env` file with:
 ```
 REKA_API_KEY=your_reka_api_key_here
 ```
+
