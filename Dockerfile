@@ -20,11 +20,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY keyframe_extractor.py .
 COPY web_app.py .
+COPY reka_service.py .
+COPY db_service.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
 
-# Create directories for uploads and output
-RUN mkdir -p /app/uploads /app/output
+# Create directories for uploads, output, and database
+RUN mkdir -p /app/uploads /app/output /app/data
 
 # Make scripts executable
 RUN chmod +x keyframe_extractor.py web_app.py
