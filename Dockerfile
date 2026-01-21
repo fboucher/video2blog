@@ -32,7 +32,7 @@ RUN mkdir -p /app/uploads /app/output /app/data
 RUN chmod +x keyframe_extractor.py web_app.py
 
 # Expose port for Flask
-EXPOSE 5000
+EXPOSE 5123
 
 # Set default command to run web app
 CMD ["python", "web_app.py"]

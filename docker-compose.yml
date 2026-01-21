@@ -6,7 +6,7 @@ services:
     build: .
     container_name: video2blog
     ports:
-      - "5123:5000"
+      - "5123:5123"
     volumes:
       - ./uploads:/app/uploads
       - ./output:/app/output

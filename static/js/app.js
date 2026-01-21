@@ -3,7 +3,37 @@ let currentVideo = null;
 let chatMessages = [];
 
 // Default question template
-const DEFAULT_QUESTION = "Write a blog post covering the topic of the video, like you where the person presenting. Write it in markdown using simple English. Before the post, suggest 3 timestamps (in seconds) that could be interesting for the reader";
+const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos. Your task is to:
+
+Watch and analyze the video carefully
+Write a complete, standalone blog post that covers the video's content with:
+
+A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
+Clear structure with descriptive headings and sections
+A brief conclusion that summarizes key takeaways
+Simple, accessible English (avoid jargon where possible; explain technical terms when necessary)
+Markdown formatting
+
+Identify 3 key timestamps for important visual moments such as:
+
+Diagrams or visual explanations
+Final results or completed work
+Error messages or debugging steps
+Critical demonstrations
+Before/after comparisons
+
+Requirements:
+
+The blog post should be understandable without watching the video
+Use conversational but professional tone
+Include all important details, steps, and concepts from the video
+Within the post, place placeholder images where visual content should appear using: ![Image description](KEYFRAME_[seconds])
+
+Output format:
+
+First, provide the complete blog post in markdown
+Then, on the last line, list the 3 timestamps as comma-separated seconds only, like this:
+TIMESTAMPS: 45, 127, 289`;
 
 // Helper function: fetch with timeout
 async function fetchWithTimeout(url, options = {}, timeoutMs = 120000) {

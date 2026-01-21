@@ -921,7 +921,7 @@ header p {
     gap: 10px;
 }
 
-.chat-input-area input {
+.chat-input-area textarea {
     flex: 1;
     padding: 12px 16px;
     border: 2px solid var(--ctp-mocha-overlay0);
@@ -930,14 +930,16 @@ header p {
     color: var(--ctp-mocha-text);
     font-size: 1rem;
     transition: border-color 0.3s;
+    resize: vertical;
+    min-height: 50px;
 }
 
-.chat-input-area input:focus {
+.chat-input-area textarea:focus {
     outline: none;
     border-color: var(--ctp-mocha-blue);
 }
 
-.chat-input-area input::placeholder {
+.chat-input-area textarea::placeholder {
     color: var(--ctp-mocha-overlay1);
 }
 
