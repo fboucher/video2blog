@@ -18,22 +18,66 @@
             <!-- Step 1: Select or Upload Video -->
             <section class="card" id="upload-section">
                 <h2>Step 1: Select or Upload Video</h2>
-                
-                <!-- Compact Upload Area -->
-                <div class="upload-area-compact">
-                    <input type="file" id="video-input" accept="video/*" hidden>
-                    <label for="video-input" class="upload-label-compact">
+
+                <!-- Tab Switcher -->
+                <div class="upload-tabs">
+                    <button class="upload-tab active" data-tab="file" onclick="switchUploadTab('file')">
                         <span class="material-symbols-rounded">upload_file</span>
-                        <span>Upload New Video</span>
-                    </label>
+                        Upload File
+                    </button>
+                    <button class="upload-tab" data-tab="url" onclick="switchUploadTab('url')">
+                        <span class="material-symbols-rounded">link</span>
+                        From URL
+                    </button>
                 </div>
-                
+
+                <!-- File Upload Area -->
+                <div id="file-upload-area" class="upload-area-compact">
+                    <div class="upload-form">
+                        <div class="form-group">
+                            <label for="file-video-name" class="form-label">Video Name (optional)</label>
+                            <input type="text" id="file-video-name" placeholder="Enter a name for your video" class="form-input">
+                        </div>
+                        <input type="file" id="video-input" accept="video/*" hidden>
+                        <label for="video-input" class="upload-label-compact">
+                            <span class="material-symbols-rounded">upload_file</span>
+                            <span>Upload New Video</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- URL Upload Area -->
+                <div id="url-upload-area" class="upload-area-compact hidden">
+                    <div class="upload-form">
+                        <div class="form-group">
+                            <label for="url-video-name" class="form-label">Video Name (optional)</label>
+                            <input type="text" id="url-video-name" placeholder="Enter a name for your video" class="form-input">
+                        </div>
+                        <div class="form-group">
+                            <label for="url-input" class="form-label">Video URL</label>
+                            <div class="url-input-container">
+                                <input type="text" id="url-input" placeholder="Enter video URL (YouTube, Vimeo, or direct link)" class="url-input">
+                                <button id="url-upload-btn" class="btn btn-primary">
+                                    <span class="material-symbols-rounded">cloud_upload</span>
+                                    Upload to Reka
+                                </button>
+                            </div>
+                            <small class="url-help-text">Supports YouTube, Vimeo, and direct video URLs</small>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Unified Video List -->
                 <div id="videos-section">
-                    <h3>
-                        <span class="material-symbols-rounded" style="vertical-align: middle;">video_library</span>
-                        Your Videos
-                    </h3>
+                    <div class="videos-header">
+                        <h3>
+                            <span class="material-symbols-rounded" style="vertical-align: middle;">video_library</span>
+                            Your Videos
+                        </h3>
+                        <button id="refresh-videos-btn" class="btn-icon" onclick="loadAllVideos()" title="Refresh video list">
+                            <span class="material-symbols-rounded">refresh</span>
+                        </button>
+                    </div>
                     <div id="videos-list" class="videos-list">
                         <div class="loading-files">Loading videos...</div>
                     </div>

@@ -2,7 +2,7 @@
 """Reka API Service for video operations and Q&A."""
 
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 import requests
 from dotenv import load_dotenv
@@ -51,16 +51,16 @@ def upload_video(
     video_name: str,
     index: bool = True,
     enable_thumbnails: bool = False,
-    group_id: Optional[str] = None
+    group_id: str = "default"
 ) -> Dict[str, Any]:
     """Upload a video to Reka.
-    
+
     Args:
         video_path: Local path to video file.
         video_name: Name for the video in Reka system.
         index: Whether to index the video for search/QA.
         enable_thumbnails: Whether to generate thumbnails.
-        group_id: Optional video group assignment.
+        group_id: Video group assignment (defaults to "default").
     
     Returns:
         Dictionary with upload result, video_id, or error.
@@ -72,16 +72,14 @@ def upload_video(
         return {'error': f'Video file not found: {video_path}'}
     
     url = f"{REKA_BASE_URL}/v1/videos/upload"
-    
+
     data = {
         'index': index,
         'enable_thumbnails': enable_thumbnails,
         'video_name': video_name,
+        'group_id': group_id,
     }
-    
-    if group_id:
-        data['group_id'] = group_id
-    
+
     headers = {
         'X-Api-Key': REKA_API_KEY
     }
@@ -113,20 +111,76 @@ def upload_video(
         return {'error': f'Failed to upload video: {str(e)}'}
 
 
+def upload_video_from_url(
+    video_url: str,
+    video_name: str,
+    index: bool = True,
+    enable_thumbnails: bool = False,
+    group_id: str = "default"
+) -> Dict[str, Any]:
+    """Upload a video to Reka directly from a URL.
+
+    Args:
+        video_url: URL to the video (YouTube, Vimeo, direct video URL, etc.)
+        video_name: Name for the video in Reka system.
+        index: Whether to index the video for search/QA.
+        enable_thumbnails: Whether to generate thumbnails.
+        group_id: Video group assignment (defaults to "default").
+
+    Returns:
+        Dictionary with upload result, video_id, or error.
+    """
+    if not REKA_API_KEY:
+        return {'error': 'REKA_API_KEY not configured'}
+
+    url = f"{REKA_BASE_URL}/v1/videos/upload"
+
+    data = {
+        'index': index,
+        'enable_thumbnails': enable_thumbnails,
+        'video_name': video_name,
+        'video_url': video_url,  # Reka downloads from this URL
+        'group_id': group_id,
+    }
+
+    headers = {'X-Api-Key': REKA_API_KEY}
+
+    try:
+        response = requests.post(
+            url,
+            headers=headers,
+            data=data,
+            timeout=300  # 5 minutes
+        )
+        response.raise_for_status()
+        response_data = response.json()
+
+        video_id = response_data.get('video_id')
+
+        return {
+            'success': True,
+            'video_id': video_id,
+            'data': response_data,
+            'message': f'Successfully uploaded from URL: {video_name}'
+        }
+    except requests.exceptions.RequestException as e:
+        return {'error': f'Failed to upload video from URL: {str(e)}'}
+
+
 def delete_video(video_id: str) -> Dict[str, Any]:
     """Delete a video from Reka.
-    
+
     Args:
         video_id: ID of the video to delete.
-    
+
     Returns:
         Dictionary with deletion result or error.
     """
     if not REKA_API_KEY:
         return {'error': 'REKA_API_KEY not configured'}
-    
+
     url = f"{REKA_BASE_URL}/v1/videos/{video_id}"
-    
+
     try:
         response = requests.delete(
             url,
