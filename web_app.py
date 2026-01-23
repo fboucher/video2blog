@@ -3,9 +3,11 @@ import io
 import json
 import os
 import re
+import time
 import zipfile
 from pathlib import Path
 from typing import Dict, Any, List
+from urllib.parse import urlparse
 
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
@@ -59,14 +61,33 @@ def sanitize_filename(video_name: str, reka_video_id: str) -> str:
 
 def allowed_file(filename: str) -> bool:
     """Check if file extension is allowed.
-    
+
     Args:
         filename: Name of the file to check.
-    
+
     Returns:
         True if file extension is allowed, False otherwise.
     """
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def is_valid_url(url: str) -> bool:
+    """Validate URL format using regex.
+
+    Args:
+        url: The URL to validate.
+
+    Returns:
+        True if URL is valid, False otherwise.
+    """
+    url_pattern = re.compile(
+        r'^https?://'  # http:// or https://
+        r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,6}\.?|'  # domain
+        r'localhost|'  # localhost
+        r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # or IP
+        r'(?::\d+)?'  # optional port
+        r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    return url_pattern.match(url) is not None
 
 
 @app.route('/')
@@ -455,12 +476,14 @@ def upload_file():
     reka_video_id = None
     reka_indexing_status = None
     reka_upload_error = None
-    
+
     if reka_service.is_configured():
         try:
-            # Use original filename (without .mp4) as video name
-            video_name = Path(filename).stem
-            
+            # Use custom video name if provided, otherwise use filename
+            video_name = request.form.get('video_name', '').strip()
+            if not video_name:
+                video_name = Path(filename).stem
+
             reka_result = reka_service.upload_video(
                 video_path=filepath,
                 video_name=video_name,
@@ -505,8 +528,69 @@ def upload_file():
         response['reka_synced'] = False
         if reka_upload_error:
             response['reka_upload_error'] = reka_upload_error
-    
+
     return jsonify(response)
+
+
+@app.route('/upload-from-url', methods=['POST'])
+def upload_from_url():
+    """Handle video upload from URL by sending directly to Reka.
+
+    Flow:
+    1. Validate URL format
+    2. Send URL to Reka API for direct upload/indexing
+    3. Reka downloads and indexes the video
+    4. Return video_id to frontend
+    5. Video appears in list as "Reka" video (no local copy)
+    """
+    data = request.json
+
+    if not data or 'url' not in data:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    video_url = data['url'].strip()
+
+    # Validate URL format
+    if not is_valid_url(video_url):
+        return jsonify({'error': 'Invalid URL format. Must start with http:// or https://'}), 400
+
+    # Check if Reka is configured
+    if not reka_service.is_configured():
+        return jsonify({'error': 'Reka API is not configured. URL uploads require Reka API key.'}), 400
+
+    try:
+        # Generate a video name from URL or use user-provided name
+        video_name = data.get('video_name')
+        if not video_name:
+            # Extract simple name from URL
+            parsed = urlparse(video_url)
+            video_name = f"video_{parsed.netloc}_{int(time.time())}"
+
+        # Upload to Reka directly from URL
+        result = reka_service.upload_video_from_url(
+            video_url=video_url,
+            video_name=video_name,
+            index=True,
+            enable_thumbnails=False
+        )
+
+        if 'error' in result:
+            return jsonify(result), 400
+
+        response = {
+            'success': True,
+            'video_id': result['video_id'],
+            'video_name': video_name,
+            'source_url': video_url,
+            'message': 'Video uploaded to Reka successfully',
+            'reka_upload': True,
+            'local_file': False  # No local copy
+        }
+
+        return jsonify(response)
+
+    except Exception as e:
+        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
 
 @app.route('/extract', methods=['POST'])

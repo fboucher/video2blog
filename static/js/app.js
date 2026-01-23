@@ -79,8 +79,100 @@ chatInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendChatMessage();
 });
 
+// URL Upload Event Listeners
+const urlUploadBtn = document.getElementById('url-upload-btn');
+const urlInput = document.getElementById('url-input');
+
+if (urlUploadBtn) {
+    urlUploadBtn.addEventListener('click', uploadFromUrl);
+}
+
+if (urlInput) {
+    urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') uploadFromUrl();
+    });
+}
+
 // Load all videos on page load
 loadAllVideos();
+
+// Tab Switching Functions
+function switchUploadTab(tab) {
+    const fileArea = document.getElementById('file-upload-area');
+    const urlArea = document.getElementById('url-upload-area');
+    const tabs = document.querySelectorAll('.upload-tab');
+
+    tabs.forEach(t => {
+        t.classList.toggle('active', t.dataset.tab === tab);
+    });
+
+    if (tab === 'file') {
+        fileArea.classList.remove('hidden');
+        urlArea.classList.add('hidden');
+    } else {
+        fileArea.classList.add('hidden');
+        urlArea.classList.remove('hidden');
+    }
+}
+
+async function uploadFromUrl() {
+    const urlInput = document.getElementById('url-input');
+    const videoNameInput = document.getElementById('url-video-name');
+    const uploadBtn = document.getElementById('url-upload-btn');
+    const url = urlInput.value.trim();
+    const videoName = videoNameInput.value.trim();
+
+    if (!url) {
+        showToast('Please enter a video URL', 'error');
+        return;
+    }
+
+    // Basic validation
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        showToast('URL must start with http:// or https://', 'error');
+        return;
+    }
+
+    try {
+        uploadBtn.disabled = true;
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">hourglass_empty</span> Uploading...';
+        showToast('Uploading video URL to Reka...', 'info');
+
+        // Build request body with URL and optional video name
+        const requestBody = { url: url };
+        if (videoName) {
+            requestBody.video_name = videoName;
+        }
+
+        const response = await fetch('/upload-from-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast(`Video uploaded to Reka: ${data.video_name}`, 'success');
+
+        // Reload video list (video will appear as Reka video)
+        loadAllVideos();
+
+        // Clear inputs
+        urlInput.value = '';
+        videoNameInput.value = '';
+
+    } catch (error) {
+        showToast('Upload failed: ' + error.message, 'error');
+    } finally {
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">cloud_upload</span> Upload to Reka';
+    }
+}
 
 // Unified Video List Functions
 async function loadAllVideos() {
@@ -349,22 +441,29 @@ function handleFileSelect(event) {
 async function uploadVideo(file) {
     const formData = new FormData();
     formData.append('video', file);
-    
+
+    // Get video name from input if provided
+    const videoNameInput = document.getElementById('file-video-name');
+    const videoName = videoNameInput.value.trim();
+    if (videoName) {
+        formData.append('video_name', videoName);
+    }
+
     try {
         showToast('Uploading video...', 'info');
-        
+
         const response = await fetch('/upload', {
             method: 'POST',
             body: formData
         });
-        
+
         const data = await response.json();
-        
+
         if (data.error) {
             showToast(data.error, 'error');
             return;
         }
-        
+
         // Show success and auto-upload info
         if (data.reka_synced) {
             showToast('Video uploaded and synced to Reka!', 'success');
@@ -374,13 +473,14 @@ async function uploadVideo(file) {
                 showToast('Reka sync failed: ' + data.reka_upload_error, 'warning');
             }
         }
-        
+
         // Reload video list
         loadAllVideos();
-        
-        // Reset file input
+
+        // Reset file input and name input
         videoInput.value = '';
-        
+        videoNameInput.value = '';
+
     } catch (error) {
         showToast('Upload failed: ' + error.message, 'error');
     }
