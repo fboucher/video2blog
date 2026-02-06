@@ -178,6 +178,10 @@ input/
 *.png
 *.json
 
+# Allow assets/ directory (documentation images)
+!/assets/
+!/assets/**
+
 # Allow specific configuration files if needed
 !requirements.txt
 !package.json
