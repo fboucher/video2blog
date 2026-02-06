@@ -5,8 +5,8 @@ let chatMessages = [];
 // Default question template
 const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos. Your task is to:
 
-Watch and analyze the video carefully
-Write a complete, standalone blog post that covers the video's content with:
+1. Watch and analyze the video carefully
+2. Write a complete, standalone blog post that covers the video's content with:
 
 A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
 Clear structure with descriptive headings and sections
@@ -16,11 +16,11 @@ Markdown formatting
 
 Identify 3 key timestamps for important visual moments such as:
 
-Diagrams or visual explanations
-Final results or completed work
-Error messages or debugging steps
-Critical demonstrations
-Before/after comparisons
+- Diagrams or visual explanations
+- Final results or completed work
+- Error messages or debugging steps
+- Critical demonstrations
+- Before/after comparisons
 
 Requirements:
 
@@ -31,9 +31,10 @@ Within the post, place placeholder images where visual content should appear usi
 
 Output format:
 
-First, provide the complete blog post in markdown
+First, provide the complete blog post in markdown.
 Then, on the last line, list the 3 timestamps as comma-separated seconds only, like this:
-TIMESTAMPS: 45, 127, 289`;
+TIMESTAMPS: 45, 127, 289
+`;
 
 // Helper function: fetch with timeout
 async function fetchWithTimeout(url, options = {}, timeoutMs = 120000) {
@@ -759,6 +760,14 @@ async function sendChatMessage() {
             answer = data.data.answer;
         }
         
+        // Auto-extract timestamps from AI response
+        const timestampMatch = answer.match(/TIMESTAMPS:\s*([\d.,\s]+)/i);
+        if (timestampMatch) {
+            const timestampsValue = timestampMatch[1].trim().replace(/,\s*$/, '');
+            document.getElementById('timestamps').value = timestampsValue;
+            document.getElementById('params-section').style.display = '';
+        }
+
         // Add assistant message
         addChatMessage('assistant', answer);
         
