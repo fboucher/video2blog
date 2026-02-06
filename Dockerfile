@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+ARG APP_VERSION=0.5.1-preview
+ENV APP_VERSION=${APP_VERSION}
+
 # Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y \
     libgl1 \

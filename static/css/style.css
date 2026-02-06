@@ -1540,6 +1540,10 @@ footer {
     flex-wrap: wrap;
 }
 
+.footer-version {
+    color: var(--ctp-mocha-pink);
+}
+
 .footer-sep {
     opacity: 0.5;
 }
