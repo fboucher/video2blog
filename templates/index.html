@@ -16,10 +16,9 @@
 
         <main>
             <!-- Step 1: Select or Upload Video -->
-            <section class="card" id="upload-section">
-                <h2>Step 1: Select or Upload Video</h2>
+            <details class="card" id="upload-section" open>
+                <summary><h2>Step 1: Select or Upload Video</h2></summary>
 
-                <!-- Tab Switcher -->
                 <div class="upload-tabs">
                     <button class="upload-tab active" data-tab="file" onclick="switchUploadTab('file')">
                         <span class="material-symbols-rounded">upload_file</span>
@@ -31,7 +30,6 @@
                     </button>
                 </div>
 
-                <!-- File Upload Area -->
                 <div id="file-upload-area" class="upload-area-compact">
                     <div class="upload-form">
                         <div class="form-group">
@@ -46,7 +44,6 @@
                     </div>
                 </div>
 
-                <!-- URL Upload Area -->
                 <div id="url-upload-area" class="upload-area-compact hidden">
                     <div class="upload-form">
                         <div class="form-group">
@@ -67,7 +64,6 @@
                     </div>
                 </div>
 
-                <!-- Unified Video List -->
                 <div id="videos-section">
                     <div class="videos-header">
                         <h3>
@@ -84,29 +80,27 @@
                 </div>
                 
                 <div id="video-info" class="video-info hidden"></div>
-            </section>
+            </details>
 
             <!-- Step 2: Ask Questions About Video -->
-            <section class="card" id="chat-section" style="display: none;">
-                <h2>
-                    <span class="material-symbols-rounded" style="vertical-align: middle;">chat</span>
+            <details class="card" id="chat-section" style="display: none;" open>
+                <summary><h2>
                     Step 2: Ask Questions About This Video
-                </h2>
+                </h2></summary>
                 <div id="chat-messages" class="chat-messages"></div>
                 <div class="chat-input-area">
-                    <textarea id="chat-input" placeholder="How would you like I write the blog post?" rows="1"></textarea>
+                    <textarea id="chat-input" placeholder="How would you like I write the blog post?" rows="5"></textarea>
                     <button id="chat-send-btn" class="btn btn-primary">
                         <span class="material-symbols-rounded">send</span>
                         Send
                     </button>
                 </div>
-            </section>
+            </details>
 
             <!-- Step 3: Configure Extraction -->
-            <section class="card" id="params-section" style="display: none;">
-                <h2>Step 3: Configure Extraction</h2>
-                
-                <!-- Timestamp Parameters -->
+            <details class="card" id="params-section" style="display: none;" open>
+                <summary><h2>Step 3: Configure Extraction</h2></summary>
+
                 <div id="timestamp-params" class="params-group">
                     <div class="form-group">
                         <label for="timestamps">Timestamps (seconds)</label>
@@ -115,27 +109,45 @@
                     </div>
                     <div class="form-group">
                         <label for="frames-per-timestamp">Frames per Timestamp</label>
-                        <input type="number" id="frames-per-timestamp" value="3" min="1" max="10">
+                        <input type="number" id="frames-per-timestamp" value="1" min="1" max="5">
                         <small>Number of frames to extract around each timestamp</small>
                     </div>
                 </div>
 
                 <button id="extract-btn" class="btn btn-primary">Extract Frames</button>
-            </section>
+            </details>
 
             <!-- Step 4: Extraction Results -->
-            <section class="card" id="results-section" style="display: none;">
-                <h2>Step 4: Extraction Results</h2>
+            <details class="card" id="results-section" style="display: none;" open>
+                <summary><h2>Step 4: Extraction Results</h2></summary>
                 <div id="progress" class="progress hidden">
                     <div class="spinner"></div>
                     <p>Processing video...</p>
                 </div>
                 <div id="results-content" class="results-content hidden"></div>
-            </section>
+            </details>
         </main>
     </div>
 
-    <!-- Toast Notifications Container -->
+    <footer>
+        <div class="footer-content">
+            <span>Video2Blog <span class="footer-version">v{{ version }}</span></span>
+            <span class="footer-sep">&middot;</span>
+            <a href="https://github.com/fboucher/video2blog" target="_blank" rel="noopener noreferrer">
+                <span class="material-symbols-rounded" style="font-size: 16px; vertical-align: middle;">code</span>
+                GitHub
+            </a>
+            <span class="footer-sep">&middot;</span>
+            <span>2026</span>
+            <span class="footer-sep">&middot;</span>
+            <span class="footer-version">Frank Boucher</span>
+            <span class="footer-sep">&middot;</span>
+            <span>c5m</span>
+            <span class="footer-sep">&middot;</span>
+            <span>MIT License</span>
+        </div>
+    </footer>
+
     <div id="toast-container"></div>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
