@@ -18,6 +18,7 @@ import db_service
 
 
 # Constants
+APP_VERSION = os.environ.get('APP_VERSION', '0.5.1-preview')
 UPLOAD_FOLDER = '/app/uploads'
 OUTPUT_FOLDER = '/app/output'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'}
@@ -93,7 +94,7 @@ def is_valid_url(url: str) -> bool:
 @app.route('/')
 def index():
     """Render the main page."""
-    return render_template('index.html')
+    return render_template('index.html', version=APP_VERSION)
 
 
 @app.route('/videos/list')

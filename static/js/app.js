@@ -3,37 +3,42 @@ let currentVideo = null;
 let chatMessages = [];
 
 // Default question template
-const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos. Your task is to:
+const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos.
 
-Watch and analyze the video carefully
-Write a complete, standalone blog post that covers the video's content with:
+IMPORTANT: Your response MUST end with a TIMESTAMPS line (see output format below).
 
-A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
-Clear structure with descriptive headings and sections
-A brief conclusion that summarizes key takeaways
-Simple, accessible English (avoid jargon where possible; explain technical terms when necessary)
-Markdown formatting
+Your task is to:
 
-Identify 3 key timestamps for important visual moments such as:
+1. Watch and analyze the video carefully
+2. Write a complete, standalone blog post that covers the video's content with:
+- A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
+- Clear structure with descriptive headings and sections
+- A brief conclusion that summarizes key takeaways
+- Simple, accessible English (avoid jargon where possible; explain technical terms when necessary)
+- Markdown formatting
 
-Diagrams or visual explanations
-Final results or completed work
-Error messages or debugging steps
-Critical demonstrations
-Before/after comparisons
+3. Identify 3 key timestamps for important visual moments such as:
+- Diagrams or visual explanations
+- Final results or completed work
+- Error messages or debugging steps
+- Critical demonstrations
+- Before/after comparisons
 
 Requirements:
+- The blog post should be understandable without watching the video
+- Use conversational but professional tone
+- Include all important details, steps, and concepts from the video
+- Within the post, place placeholder images where visual content should appear using: ![Image description](KEYFRAME_[seconds])
 
-The blog post should be understandable without watching the video
-Use conversational but professional tone
-Include all important details, steps, and concepts from the video
-Within the post, place placeholder images where visual content should appear using: ![Image description](KEYFRAME_[seconds])
+---
+Output format (follow exactly):
 
-Output format:
+1. The complete blog post in markdown
+2. Then, the VERY LAST line of your response MUST be the 3 timestamps as comma-separated seconds in this exact format:
+TIMESTAMPS: 45, 127, 289
 
-First, provide the complete blog post in markdown
-Then, on the last line, list the 3 timestamps as comma-separated seconds only, like this:
-TIMESTAMPS: 45, 127, 289`;
+Do NOT add any text after the TIMESTAMPS line.
+`;
 
 // Helper function: fetch with timeout
 async function fetchWithTimeout(url, options = {}, timeoutMs = 120000) {
@@ -310,7 +315,8 @@ async function selectVideo(video) {
         </div>
     `;
     
-    // Show chat section for Q&A and extraction section
+    // Collapse Step 1 and show chat section for Q&A and extraction section
+    document.getElementById('upload-section').removeAttribute('open');
     chatSection.style.display = 'block';
     paramsSection.style.display = 'block';
     resultsSection.style.display = 'none';
@@ -759,6 +765,22 @@ async function sendChatMessage() {
             answer = data.data.answer;
         }
         
+        // Auto-extract timestamps from AI response
+        const timestampMatch = answer.match(/TIMESTAMPS:\s*([\d.,\s]+)/i);
+        if (timestampMatch) {
+            const timestampsValue = timestampMatch[1].trim().replace(/,\s*$/, '');
+            document.getElementById('timestamps').value = timestampsValue;
+            document.getElementById('params-section').style.display = '';
+        } else {
+            // Fallback: extract unique timestamps from KEYFRAME_[seconds] patterns
+            const keyframeMatches = [...answer.matchAll(/KEYFRAME_([\d.]+)/g)];
+            if (keyframeMatches.length > 0) {
+                const uniqueTimestamps = [...new Set(keyframeMatches.map(m => m[1]))];
+                document.getElementById('timestamps').value = uniqueTimestamps.join(', ');
+                document.getElementById('params-section').style.display = '';
+            }
+        }
+
         // Add assistant message
         addChatMessage('assistant', answer);
         
