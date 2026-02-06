@@ -3,19 +3,21 @@ let currentVideo = null;
 let chatMessages = [];
 
 // Default question template
-const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos. Your task is to:
+const DEFAULT_QUESTION = `You are a technical content writer creating blog posts from educational videos.
+
+IMPORTANT: Your response MUST end with a TIMESTAMPS line (see output format below).
+
+Your task is to:
 
 1. Watch and analyze the video carefully
 2. Write a complete, standalone blog post that covers the video's content with:
+- A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
+- Clear structure with descriptive headings and sections
+- A brief conclusion that summarizes key takeaways
+- Simple, accessible English (avoid jargon where possible; explain technical terms when necessary)
+- Markdown formatting
 
-A short, engaging introduction (2-3 sentences) that hooks the reader and clearly states what they'll learn
-Clear structure with descriptive headings and sections
-A brief conclusion that summarizes key takeaways
-Simple, accessible English (avoid jargon where possible; explain technical terms when necessary)
-Markdown formatting
-
-Identify 3 key timestamps for important visual moments such as:
-
+3. Identify 3 key timestamps for important visual moments such as:
 - Diagrams or visual explanations
 - Final results or completed work
 - Error messages or debugging steps
@@ -23,17 +25,19 @@ Identify 3 key timestamps for important visual moments such as:
 - Before/after comparisons
 
 Requirements:
+- The blog post should be understandable without watching the video
+- Use conversational but professional tone
+- Include all important details, steps, and concepts from the video
+- Within the post, place placeholder images where visual content should appear using: ![Image description](KEYFRAME_[seconds])
 
-The blog post should be understandable without watching the video
-Use conversational but professional tone
-Include all important details, steps, and concepts from the video
-Within the post, place placeholder images where visual content should appear using: ![Image description](KEYFRAME_[seconds])
+---
+Output format (follow exactly):
 
-Output format:
-
-First, provide the complete blog post in markdown.
-Then, on the last line, list the 3 timestamps as comma-separated seconds only, like this:
+1. The complete blog post in markdown
+2. Then, the VERY LAST line of your response MUST be the 3 timestamps as comma-separated seconds in this exact format:
 TIMESTAMPS: 45, 127, 289
+
+Do NOT add any text after the TIMESTAMPS line.
 `;
 
 // Helper function: fetch with timeout
