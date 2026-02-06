@@ -1522,3 +1522,34 @@ details.card[open] > summary {
 .download-md-btn .material-symbols-rounded {
     font-size: 16px;
 }
+
+/* Footer */
+footer {
+    text-align: center;
+    padding: 30px 0 20px;
+    margin-top: 20px;
+    color: var(--ctp-mocha-overlay0);
+    font-size: 0.85rem;
+}
+
+.footer-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.footer-sep {
+    opacity: 0.5;
+}
+
+footer a {
+    color: var(--ctp-mocha-blue);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+footer a:hover {
+    color: var(--ctp-mocha-pink);
+}
