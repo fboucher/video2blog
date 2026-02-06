@@ -64,6 +64,39 @@ header p {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
+details.card > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+details.card > summary::-webkit-details-marker {
+    display: none;
+}
+
+details.card > summary::after {
+    content: 'expand_less';
+    font-family: 'Material Symbols Rounded';
+    font-size: 24px;
+    color: var(--ctp-mocha-subtext0);
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+}
+
+details.card:not([open]) > summary::after {
+    transform: rotate(180deg);
+}
+
+details.card > summary h2 {
+    margin-bottom: 0;
+}
+
+details.card[open] > summary {
+    margin-bottom: 20px;
+}
+
 .card h2 {
     margin-bottom: 20px;
     color: var(--ctp-mocha-pink);

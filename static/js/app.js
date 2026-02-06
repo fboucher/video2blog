@@ -315,7 +315,8 @@ async function selectVideo(video) {
         </div>
     `;
     
-    // Show chat section for Q&A and extraction section
+    // Collapse Step 1 and show chat section for Q&A and extraction section
+    document.getElementById('upload-section').removeAttribute('open');
     chatSection.style.display = 'block';
     paramsSection.style.display = 'block';
     resultsSection.style.display = 'none';
