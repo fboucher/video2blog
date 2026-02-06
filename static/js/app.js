@@ -766,6 +766,14 @@ async function sendChatMessage() {
             const timestampsValue = timestampMatch[1].trim().replace(/,\s*$/, '');
             document.getElementById('timestamps').value = timestampsValue;
             document.getElementById('params-section').style.display = '';
+        } else {
+            // Fallback: extract unique timestamps from KEYFRAME_[seconds] patterns
+            const keyframeMatches = [...answer.matchAll(/KEYFRAME_([\d.]+)/g)];
+            if (keyframeMatches.length > 0) {
+                const uniqueTimestamps = [...new Set(keyframeMatches.map(m => m[1]))];
+                document.getElementById('timestamps').value = uniqueTimestamps.join(', ');
+                document.getElementById('params-section').style.display = '';
+            }
         }
 
         // Add assistant message
