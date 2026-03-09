@@ -54,3 +54,13 @@
 
 **Key Insight:** The single biggest win was switching to opencv-python-headless. For server-side/headless applications using OpenCV, this should always be the first optimization. The package savings from removing GUI dependencies far outweigh any multi-stage build complexity for Python apps.
 
+### 2026-03-09 — Design Decision Validation (libgl1 Retention)
+
+**Context:** Hicks' initial strategy recommended removing libgl1, but Vasquez retained it in the final implementation.
+
+**Decision:** Correctly retained libgl1.
+
+**Rationale:** OpenCV headless variant still requires libgl1 for OpenGL operations (GL-related image processing and buffer operations). Removing it would break headless OpenCV functionality on systems without native GPU support.
+
+**Verification:** Bishop's full build verification confirmed that retaining libgl1 is the correct choice. All tests passed including image processing operations that rely on OpenGL-based transformations in headless mode.
+
