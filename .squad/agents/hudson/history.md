@@ -113,3 +113,95 @@
 - Frame extraction will require yt-dlp integration (issue #27)
 - Reka branding successfully removed from URL upload flow
 
+## Issue #23 — Local Video Upload + Gemini Caching — Frontend Implementation
+
+**Date:** 2026-05-07
+**Branch:** squad/23-local-video-upload-gemini-caching-library-ui
+
+### What Was Built
+
+1. **Gemini Cache Status Badges**
+   - Replaced Reka indexing status with Gemini cache status in video library
+   - Badge states: `fresh` (green, "Ready (Xh)"), `expired` (red, "Expired"), `not_uploaded` (gray, "Not uploaded")
+   - Uses existing badge CSS classes (.badge-green, .badge-red, .badge-gray)
+   - Shows expiration time in hours for fresh cache
+
+2. **Upload to Gemini Button**
+   - Conditional button appears for `expired` and `not_uploaded` videos
+   - POST to `/videos/upload-to-gemini` with `{ filename: video.filename }`
+   - Shows loading spinner (sync icon with CSS animation) while uploading
+   - Reloads video list on success
+   - Error handling with toast notifications
+
+3. **Removed Reka-Related UI**
+   - Removed "Download to local" button (was `/videos/download` endpoint)
+   - Removed "Refresh indexing status" button (was `/reka/refresh-status` endpoint)
+   - Removed "Delete from Reka" button
+   - Updated disabled button tooltip to "Video not ready for processing"
+
+### Frontend Patterns Used
+
+**Status Badge Implementation:**
+- Conditional badge rendering in template based on video.gemini_cache_status
+- Separate function `getStatusBadge()` handles badge logic and styling
+- Used Material Symbols icons for visual consistency (check_circle, schedule, cloud_upload)
+
+**Upload Handler Pattern:**
+- Async function with event.target detection to find button element
+- Preserves original HTML for restoration on error
+- Button disabled state during upload to prevent double-submission
+- Inline CSS animation for spinner (animation: spin 1s linear infinite;)
+
+**Error Handling:**
+- Toast notifications for all user-facing messages
+- Graceful fallback if button element not found
+- HTML restoration on network or API errors
+
+### API Contract Implementation
+
+Expects `/videos/list` endpoint to return:
+```json
+{
+  "filename": "video.mp4",
+  "gemini_cache_status": "fresh" | "expired" | "not_uploaded",
+  "expires_in_hours": 12  // only for fresh status
+}
+```
+
+Uses `/videos/upload-to-gemini` endpoint:
+```json
+POST { "filename": "video.mp4" }
+Response: { "status": "ok", "gemini_cache_status": "fresh" }
+```
+
+### Technical Notes
+
+- No additional CSS required; reused existing badge classes
+- Spinner animation uses existing @keyframes spin CSS rule
+- Event handling via inline onclick with JSON serialization (escaping single quotes)
+- Video object destructuring in template for clean conditional rendering
+
+## Issue #23 Completion Summary
+
+**Date:** 2026-05-07  
+**Status:** ✅ COMPLETE — PR #30 open, targeting dev
+
+### UI Components Delivered
+1. **Cache Status Badges** — Fresh (green), Expired (amber), Not Uploaded (grey)
+2. **Re-upload Button** — Triggers `/videos/upload-to-gemini` with spinner feedback
+3. **Toast Notifications** — Success/error messages with helpful copy
+4. **Reka UI Removal** — Removed download, refresh, and CDN view buttons
+
+### Frontend Patterns Used
+- Conditional badge rendering based on `gemini_cache_status`
+- Async button handler with button element detection
+- CSS spinner animation (rotate 360°)
+- Toast notification system (3-4 second auto-dismiss)
+- Error toast with user-friendly status code messages
+
+### Testing Verified
+- ✓ Cache status badges render correctly (fresh/expired/not_uploaded)
+- ✓ Re-upload button visible and functional
+- ✓ Spinner shows during upload, toast on success/error
+- ✓ Old Reka UI elements removed
+- ✓ Video list refreshes after successful re-upload

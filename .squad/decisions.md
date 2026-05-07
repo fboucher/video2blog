@@ -80,3 +80,39 @@ PR #29 implements Issue #22 — the Gemini service + DB schema foundation that a
 - Move inline imports to module level
 - Extract `_configure()` helper for DRY
 - Extract video_part resolution helper in generate_blog
+
+---
+
+## 2026-05-07: API Contract — Issue #23 Gemini Cache Status
+
+**Date:** 2026-05-07  
+**By:** Ripley (Backend)  
+**For:** Hudson (Frontend UI implementation)  
+**Status:** IMPLEMENTED
+
+### What
+Documented `/videos/list`, `POST /upload`, and `POST /videos/upload-to-gemini` response contracts for cache-aware UI badges and re-upload flow.
+
+### Key Contracts
+
+**`GET /videos/list`** returns all videos with cache status:
+- `gemini_cache_status`: `"fresh"` | `"expired"` | `"not_uploaded"`
+- `expires_in_hours`: present only when `"fresh"`
+- `gemini_uri`: file URI or `null`
+
+**`POST /upload`** (existing, now returns Gemini fields):
+- Returns `gemini_uri`, `gemini_cache_status`, optional `gemini_upload_error`
+
+**`POST /videos/upload-to-gemini`** (new re-upload endpoint):
+- Request: `{ "filename": "..." }`
+- Response: `{ "status": "ok", "uri": "files/...", "gemini_cache_status": "fresh" }`
+- Error codes: 400 (missing field), 404 (file not found), 503 (key not configured), 500 (API error)
+
+### UI Badges (Hudson)
+- **Fresh (green):** "✓ Cached (41h remaining)" — re-upload not needed
+- **Expired (amber):** "⚠ Cache Expired" — show "Re-upload" button
+- **Not Uploaded (grey):** "○ Local Only" — show "Upload to Gemini" button
+
+### Removed Routes
+- ~~`POST /videos/download`~~ (Reka CDN)
+- ~~`POST /reka/refresh-status/<video_id>`~~ (Reka polling)
