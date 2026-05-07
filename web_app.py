@@ -1072,5 +1072,56 @@ def gemini_generate_blog():
     })
 
 
+@app.route('/gemini/ask', methods=['POST'])
+def gemini_ask():
+    """Answer a question about a video using Gemini Q&A.
+
+    Accepts both local uploads (filename points to /app/uploads/) and
+    URL-based videos (pseudo-filename created by /upload-from-url).
+
+    Expects JSON body:
+        {"filename": str, "messages": [{"role": "user"|"model", "parts": [str]}, ...]}
+
+    Returns:
+        JSON: {"answer": str, "gemini_cache_status": str}
+    """
+    data = request.get_json()
+
+    if not data or 'filename' not in data or 'messages' not in data:
+        return jsonify({'error': 'filename and messages are required'}), 400
+
+    if not gemini_service.is_configured():
+        return jsonify({'error': 'Gemini API is not configured'}), 503
+
+    filename = data['filename']
+    messages = data['messages']
+
+    if not messages:
+        return jsonify({'error': 'messages must not be empty'}), 400
+
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    try:
+        # filepath is passed only if it exists; URL-based videos have no local file
+        uri, cache_status = _resolve_gemini_uri(
+            filename,
+            filepath if os.path.exists(filepath) else None,
+        )
+    except FileNotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': f'Failed to resolve Gemini file URI: {str(e)}'}), 500
+
+    try:
+        answer = gemini_service.ask(uri, messages)
+    except Exception as e:
+        return jsonify({'error': f'Q&A failed: {str(e)}'}), 500
+
+    return jsonify({
+        'answer': answer,
+        'gemini_cache_status': cache_status,
+    })
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5123, debug=True)
