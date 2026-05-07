@@ -186,6 +186,21 @@ def check_duplicate(local_filename: Optional[str] = None) -> Dict[str, Any]:
         return {'is_duplicate': False}
 
 
+def convert_url_video_to_local(url_filename: str, local_filename: str) -> None:
+    """Update a URL-based video record to reflect a local download.
+
+    Args:
+        url_filename: The pseudo-filename (e.g. "url-<hash>") stored in DB.
+        local_filename: The real local filename after yt-dlp download.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE video_sync SET local_filename = ? WHERE local_filename = ?",
+            (local_filename, url_filename)
+        )
+        conn.commit()
+
+
 def get_video_by_url(url: str) -> Optional[Dict[str, Any]]:
     """
     Return the video_sync record for a URL-based video, or None if not found.

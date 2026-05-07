@@ -148,3 +148,16 @@
 - ✓ Upload persists URI to DB
 - ✓ Error codes returned correctly
 - ✓ Old Reka routes removed
+
+---
+
+## Issue #27 — URL Video Frame Extraction via yt-dlp
+
+**Branch**: `squad/27-url-video-frame-extraction-yt-dlp`
+
+### What was built
+- Added `yt-dlp` to `requirements.txt`
+- Added `download_video_from_url(url, output_path) -> str` to `gemini_service.py` — wraps yt-dlp subprocess with extension auto-detection
+- Added `convert_url_video_to_local(url_filename, local_filename)` to `db_service.py` — renames the DB record from pseudo-filename to real local file after download
+- Added `POST /videos/extract-frames-url` route to `web_app.py` — downloads URL video via yt-dlp, updates DB, runs `extract_keyframes()`
+- Updated `static/js/app.js` — enabled disabled Extract Frames button for URL videos; wired it to new endpoint via `handleUrlExtraction()`; refreshes video library on success so URL video appears as local

@@ -334,12 +334,12 @@ async function selectVideo(video) {
         // Update extract button for URL videos
         const originalExtractBtn = document.getElementById('extract-btn');
         if (originalExtractBtn) {
-            originalExtractBtn.disabled = true;
+            originalExtractBtn.disabled = false;
             originalExtractBtn.innerHTML = `
                 <span class="material-symbols-rounded">download</span>
                 Extract Frames (downloads video)
             `;
-            originalExtractBtn.title = 'Frame extraction coming soon — this will download the video';
+            originalExtractBtn.title = 'Download the video via yt-dlp and extract keyframes';
         }
     } else {
         // Show normal params for local videos
@@ -576,6 +576,41 @@ async function uploadVideo(file) {
     }
 }
 
+// URL video extraction — downloads via yt-dlp then extracts keyframes
+async function handleUrlExtraction() {
+    const filename = currentVideo.filename;
+    showToast('Downloading video via yt-dlp… this may take a few minutes', 'info');
+
+    extractBtn.disabled = true;
+    resultsSection.style.display = 'block';
+    progress.classList.remove('hidden');
+    resultsContent.classList.add('hidden');
+
+    try {
+        const response = await fetch('/videos/extract-frames-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename })
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Frames extracted successfully!', 'success');
+        displayResults(data);
+        // Refresh library — URL video now appears as a local file
+        loadAllVideos();
+    } catch (error) {
+        showToast('Extraction failed: ' + error.message, 'error');
+    } finally {
+        extractBtn.disabled = false;
+        progress.classList.add('hidden');
+    }
+}
+
 // Extraction Handler
 async function handleExtraction() {
     if (!currentVideo) {
@@ -584,7 +619,7 @@ async function handleExtraction() {
     }
     
     if (currentVideo.source === 'url') {
-        showToast('Frame extraction coming soon — this will download the video', 'info');
+        await handleUrlExtraction();
         return;
     }
     
