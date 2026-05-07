@@ -39,27 +39,37 @@ def init_db():
                 sync_status TEXT NOT NULL DEFAULT 'synced',
                 gemini_file_uri TEXT,
                 gemini_uploaded_at TIMESTAMP,
+                source_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_local_filename ON video_sync(local_filename)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_sync_status ON video_sync(sync_status)')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_source_url ON video_sync(source_url)')
+        # Migrate existing databases that lack the source_url column
+        try:
+            conn.execute('ALTER TABLE video_sync ADD COLUMN source_url TEXT')
+        except Exception:
+            pass  # Column already exists
         conn.commit()
 
 
 def add_sync(
     local_filename: str,
     video_name: str,
-    sync_status: str = 'synced'
+    sync_status: str = 'synced',
+    source_url: Optional[str] = None,
+    **_ignored
 ) -> bool:
     """
     Add or update a video record.
 
     Args:
-        local_filename: Filename in /app/uploads/
-        video_name: Human-readable video name
-        sync_status: synced, downloading, uploading
+        local_filename: Filename in /app/uploads/ (or a pseudo-filename for URL videos).
+        video_name: Human-readable video name.
+        sync_status: synced, downloading, uploading.
+        source_url: Original source URL for URL-based videos (no local file).
 
     Returns:
         True if successful, False otherwise
@@ -68,9 +78,9 @@ def add_sync(
         try:
             conn.execute('''
                 INSERT OR REPLACE INTO video_sync
-                (local_filename, video_name, sync_status, updated_at)
-                VALUES (?, ?, ?, ?)
-            ''', (local_filename, video_name, sync_status, datetime.now()))
+                (local_filename, video_name, sync_status, source_url, updated_at)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (local_filename, video_name, sync_status, source_url, datetime.now()))
             conn.commit()
             return True
         except sqlite3.Error as e:
@@ -174,3 +184,21 @@ def check_duplicate(local_filename: Optional[str] = None) -> Dict[str, Any]:
                 }
 
         return {'is_duplicate': False}
+
+
+def get_video_by_url(url: str) -> Optional[Dict[str, Any]]:
+    """
+    Return the video_sync record for a URL-based video, or None if not found.
+
+    Args:
+        url: The original source URL used during upload.
+
+    Returns:
+        Row dict or None.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM video_sync WHERE source_url = ?',
+            (url,)
+        ).fetchone()
+        return dict(row) if row else None

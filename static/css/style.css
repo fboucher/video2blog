@@ -456,6 +456,34 @@ details.card[open] > summary {
     font-size: 0.85rem;
 }
 
+.url-video-message {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: 16px;
+    background: rgba(139, 180, 250, 0.1);
+    border: 1px solid var(--ctp-mocha-blue);
+    border-radius: 8px;
+    margin-bottom: 16px;
+}
+
+.url-video-message .material-symbols-rounded {
+    color: var(--ctp-mocha-blue);
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.url-video-message p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.url-video-message p:first-child {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
 /* Buttons */
 .btn {
     padding: 14px 30px;
@@ -1356,6 +1384,12 @@ details.card[open] > summary {
     background: rgba(108, 112, 134, 0.2);
     color: var(--ctp-mocha-overlay0);
     border: 1px solid var(--ctp-mocha-overlay0);
+}
+
+.badge-lavender {
+    background: rgba(180, 190, 254, 0.2);
+    color: var(--ctp-mocha-lavender);
+    border: 1px solid var(--ctp-mocha-lavender);
 }
 
 /* File Action Buttons */

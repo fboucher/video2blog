@@ -823,37 +823,6 @@ def delete_reka_video(video_id):
     return jsonify(result)
 
 
-def _resolve_gemini_uri(filename: str, filepath: str | None = None) -> tuple[str, str]:
-    """Return (gemini_uri, cache_status), uploading if needed.
-
-    For local videos: filepath must be provided; checks DB for fresh URI (< 48 h).
-    For URL videos: filepath is None; checks DB for URL record and returns immediately.
-
-    Raises:
-        RuntimeError: If the upload fails.
-        FileNotFoundError: If local filepath does not exist.
-    """
-    gemini_info = db_service.get_gemini_file_info(filename)
-    
-    # URL-based videos: always return fresh (no TTL)
-    if gemini_info and gemini_info.get('source') == 'url':
-        return gemini_info['uri'], 'fresh'
-    
-    cache = _gemini_cache_status(gemini_info)
-
-    if cache.get("gemini_cache_status") == "fresh":
-        return gemini_info["uri"], "fresh"
-
-    # Expired or not uploaded — (re-)upload now
-    if filepath is None:
-        raise ValueError("filepath required for local video upload")
-    
-    uri = gemini_service.upload_video(filepath)
-    timestamp = datetime.now(timezone.utc).isoformat()
-    db_service.update_gemini_upload(filename, uri, timestamp)
-    return uri, "re-uploaded"
-
-
 @app.route('/gemini/generate-blog', methods=['POST'])
 def gemini_generate_blog():
     """Generate a blog post from a local video using Gemini.
@@ -913,50 +882,54 @@ def gemini_generate_blog():
 
 
 @app.route('/gemini/ask', methods=['POST'])
-def ask_gemini_question():
-    """Ask a question about a local or URL-based video using Gemini Q&A.
+def gemini_ask():
+    """Answer a question about a video using Gemini Q&A.
 
-    Body:
-        {"filename": "video.mp4",
-         "messages": [{"role": "user", "parts": ["What is this about?"]}]}
+    Accepts both local uploads (filename points to /app/uploads/) and
+    URL-based videos (pseudo-filename created by /upload-from-url).
+
+    Expects JSON body:
+        {"filename": str, "messages": [{"role": "user"|"model", "parts": [str]}, ...]}
 
     Returns:
-        {"answer": str, "gemini_cache_status": "fresh"|"re-uploaded"}
+        JSON: {"answer": str, "gemini_cache_status": str}
     """
-    if not gemini_service.is_configured():
-        return jsonify({'error': 'Gemini not configured'}), 503
-
     data = request.get_json()
-    if not data or 'filename' not in data:
-        return jsonify({'error': 'filename is required'}), 400
 
-    messages = data.get('messages', [])
+    if not data or 'filename' not in data or 'messages' not in data:
+        return jsonify({'error': 'filename and messages are required'}), 400
+
+    if not gemini_service.is_configured():
+        return jsonify({'error': 'Gemini API is not configured'}), 503
+
+    filename = data['filename']
+    messages = data['messages']
+
     if not messages:
         return jsonify({'error': 'messages must not be empty'}), 400
 
-    filename = data['filename']
-    
-    # Try local file first; if not found, might be a URL video
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    try:
-        # For URL videos (filename like 'url-abc123'), filepath won't exist
-        # _resolve_gemini_uri will handle this case
-        if not os.path.exists(filepath) and not filename.startswith('url-'):
-            return jsonify({'error': f'Video file not found: {filename}'}), 404
-        
-        uri, cache_status = _resolve_gemini_uri(filename, filepath if os.path.exists(filepath) else None)
-    except Exception as exc:
-        print(f"[gemini/ask] Upload failed for {filename}: {exc}")
-        return jsonify({'error': f'Gemini upload failed: {exc}'}), 500
 
     try:
-        answer = gemini_service.ask(file_ref=uri, messages=messages)
-    except Exception as exc:
-        print(f"[gemini/ask] Ask failed for {filename}: {exc}")
-        return jsonify({'error': f'Gemini request failed: {exc}'}), 500
+        # filepath is passed only if it exists; URL-based videos have no local file
+        uri, cache_status = _resolve_gemini_uri(
+            filename,
+            filepath if os.path.exists(filepath) else None,
+        )
+    except FileNotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        return jsonify({'error': f'Failed to resolve Gemini file URI: {str(e)}'}), 500
 
-    return jsonify({'answer': answer, 'gemini_cache_status': cache_status})
+    try:
+        answer = gemini_service.ask(uri, messages)
+    except Exception as e:
+        return jsonify({'error': f'Q&A failed: {str(e)}'}), 500
+
+    return jsonify({
+        'answer': answer,
+        'gemini_cache_status': cache_status,
+    })
 
 
 if __name__ == '__main__':
