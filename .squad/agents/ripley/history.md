@@ -126,3 +126,25 @@
 - Issue #22 established `gemini_service.py` and DB schema foundation. All subsequent issues build on it.
 - Issue #23 dropped all Reka CDN/sync logic from `/videos/list` and `/upload`. Those routes are now purely local+Gemini.
 - Removed routes: `/videos/download`, `/reka/refresh-status/<video_id>`.
+
+## Issue #23 Completion Summary
+
+**Date:** 2026-05-07  
+**Status:** ✅ COMPLETE — PR #30 open, targeting dev
+
+### Endpoints Delivered
+1. **`GET /videos/list`** — Returns all videos with Gemini cache status (fresh/expired/not_uploaded)
+2. **`POST /videos/upload-to-gemini`** — Re-upload endpoint for expired/not_uploaded videos
+3. **`POST /upload` (enhanced)** — Now returns `gemini_uri` and `gemini_cache_status`
+
+### Implementation Decisions
+- Cache status computed from `gemini_uploaded_at` in DB (48-hour TTL)
+- Upload runs in background thread (non-blocking)
+- Error handling: 503 (key not configured), 404 (file not found), 500 (API error)
+- Removed `/videos/download` and `/reka/refresh-status/<video_id>` endpoints
+
+### Testing Verified
+- ✓ `/videos/list` returns correct cache status for all video states
+- ✓ Upload persists URI to DB
+- ✓ Error codes returned correctly
+- ✓ Old Reka routes removed
