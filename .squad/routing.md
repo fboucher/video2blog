@@ -54,7 +54,7 @@
 **Defer to:**
 - Ripley: Python dependencies in `requirements.txt`
 - Hudson: Static assets, template compilation
-- Hicks: Architecture decisions affecting infrastructure
+- Liz: Architecture decisions affecting infrastructure
 
 ---
 
@@ -79,15 +79,15 @@
 
 | Issue Type | Decision Owner | Collaborators |
 |-----------|---|---|
-| API contract changes | Ripley + Hudson sync | Hicks (scope) |
-| Database schema | Ripley | Hicks (approval) |
+| API contract changes | Ripley + Hudson sync | Liz (scope) |
+| Database schema | Ripley | Liz (approval) |
 | UI/UX changes | Hudson | Ripley (API impact) |
-| Deployment/Docker | Vasquez | Hicks (approval) |
+| Deployment/Docker | Vasquez | Liz (approval) |
 | Test coverage | Bishop | Ripley + Hudson (expectations) |
-| Architecture | Hicks | All (consultation) |
+| Architecture | Liz | All (consultation) |
 
 ## Communication Norms
 - Ripley & Hudson: Sync on API contracts before implementation
 - All team members: Read decisions/inbox before starting work
 - Async-first: Document decisions in decisions/inbox before action
-- Escalations to Hicks: Use for scope, architecture, or cross-team conflicts
+- Escalations to Liz: Use for scope, architecture, or cross-team conflicts
