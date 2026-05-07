@@ -34,3 +34,49 @@ The existing team (Liz, Vasquez, Bishop) was built for Docker optimization and l
 - Team registry updated in `.squad/casting/registry.json`
 - Routing document updated: `.squad/routing.md`
 - Team manifest updated: `.squad/team.md`
+
+---
+
+## 2026-05-07: Renamed Hicks → Liz
+
+**By:** fboucher (via Copilot)  
+**What:** Lead/Architect renamed from Hicks to Liz. All squad files updated.  
+**Why:** User preference.
+
+---
+
+## 2026-05-07: Decision — PR #29 Review — Gemini Service Foundation
+
+**Date:** 2026-05-07  
+**By:** Liz (Lead/Architect)  
+**Status:** APPROVED
+
+### Context
+
+PR #29 implements Issue #22 — the Gemini service + DB schema foundation that all other issues (#23–#28) depend on.
+
+### Verdict
+
+**APPROVED** — All acceptance criteria met. Architecture is sound for a Flask service layer.
+
+### Architectural Decisions Established
+
+1. **Stateless client pattern**: `_client()` reconfigures `genai` on every call. No singleton. Safe for multi-request Flask processes, avoids stale API key issues.
+2. **No DB migration**: Schema uses `CREATE TABLE IF NOT EXISTS`. Existing Reka databases are not migrated — a fresh DB is expected. This is acceptable since we're replacing the entire system.
+3. **Blocking upload**: `upload_video()` polls for up to 300s. Callers (Issue #23) MUST wrap this in a background task for acceptable UX.
+4. **Dual file_ref contract**: `generate_blog()` and `ask()` accept both Gemini file URIs and public URLs. This enables #23 (local upload) and #26 (URL-based) to share the same API.
+
+### What #23–#28 Implementers Must Know
+
+- Always gate on `is_configured()` before API calls
+- `upload_video()` is long-running — use background task + status polling
+- After upload, persist via `db_service.update_gemini_upload(filename, uri, iso_timestamp)`
+- Check `get_gemini_file_info(filename)` before re-uploading (48hr cache window)
+- History format: `[{"role": "user"|"model", "parts": [str]}]`
+
+### Follow-up Items (non-blocking)
+
+- Pin `google-generativeai` version in requirements.txt
+- Move inline imports to module level
+- Extract `_configure()` helper for DRY
+- Extract video_part resolution helper in generate_blog
