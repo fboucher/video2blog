@@ -140,8 +140,8 @@ async function uploadFromUrl() {
 
     try {
         uploadBtn.disabled = true;
-        uploadBtn.innerHTML = '<span class="material-symbols-rounded">hourglass_empty</span> Uploading...';
-        showToast('Uploading video URL to Reka...', 'info');
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">hourglass_empty</span> Processing...';
+        showToast('Processing video URL...', 'info');
 
         // Build request body with URL and optional video name
         const requestBody = { url: url };
@@ -162,9 +162,9 @@ async function uploadFromUrl() {
             return;
         }
 
-        showToast(`Video uploaded to Reka: ${data.video_name}`, 'success');
+        showToast(`Video ready for Q&A: ${data.filename}`, 'success');
 
-        // Reload video list (video will appear as Reka video)
+        // Reload video list (video will appear as URL video)
         loadAllVideos();
 
         // Clear inputs
@@ -175,7 +175,7 @@ async function uploadFromUrl() {
         showToast('Upload failed: ' + error.message, 'error');
     } finally {
         uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<span class="material-symbols-rounded">cloud_upload</span> Upload to Reka';
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">add_link</span> Add URL for Q&A';
     }
 }
 
@@ -201,20 +201,28 @@ function displayUnifiedVideoList(videos) {
         const sourceIcons = {
             'synced': { icon: 'sync', color: 'var(--ctp-mocha-green)', title: 'Synced (Reka + Local)' },
             'reka_only': { icon: 'cloud', color: 'var(--ctp-mocha-blue)', title: 'Reka Only' },
-            'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' }
+            'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' },
+            'url': { icon: 'language', color: 'var(--ctp-mocha-lavender)', title: 'URL Video — Q&A Ready' }
         };
         
-        const sourceInfo = sourceIcons[video.source];
+        const sourceInfo = sourceIcons[video.source] || { icon: 'help', color: 'var(--ctp-mocha-overlay0)', title: 'Unknown Source' };
         const statusBadge = getStatusBadge(video);
+        const urlBadge = video.source === 'url' ? `
+            <span class="badge badge-lavender" title="URL video is Q&A-ready. Frame extraction will download the video.">
+                <span class="material-symbols-rounded">language</span>
+                URL video — Q&A ready
+            </span>
+        ` : '';
         
         return `
-        <div class="unified-video-item ${!video.can_select ? 'disabled' : ''}" data-video-id="${video.id}">
+        <div class="unified-video-item ${!video.can_select ? 'disabled' : ''}" data-video-id="${video.id}" data-video-source="${video.source}">
             <div class="video-item-header">
                 <span class="sync-icon ${video.source}" title="${sourceInfo.title}">
                     <span class="material-symbols-rounded" style="color: ${sourceInfo.color};">${sourceInfo.icon}</span>
                 </span>
                 <div class="video-name">${escapeHtml(video.name)}</div>
                 ${statusBadge}
+                ${urlBadge}
             </div>
             <div class="video-item-meta">
                 ${video.duration ? `<span>${formatDuration(video.duration)}</span>` : ''}
@@ -320,7 +328,51 @@ async function selectVideo(video) {
     chatSection.style.display = 'block';
     paramsSection.style.display = 'block';
     resultsSection.style.display = 'none';
-    chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
+    
+    // Handle params section differently for URL vs local videos
+    if (video.source === 'url') {
+        // Hide the normal params and show URL-specific message
+        const timestampParams = document.getElementById('timestamp-params');
+        if (timestampParams) {
+            timestampParams.style.display = 'none';
+        }
+        // Update extract button for URL videos
+        const originalExtractBtn = document.getElementById('extract-btn');
+        if (originalExtractBtn) {
+            originalExtractBtn.disabled = true;
+            originalExtractBtn.innerHTML = `
+                <span class="material-symbols-rounded">download</span>
+                Extract Frames (downloads video)
+            `;
+            originalExtractBtn.title = 'Frame extraction coming soon — this will download the video';
+        }
+    } else {
+        // Show normal params for local videos
+        const timestampParams = document.getElementById('timestamp-params');
+        if (timestampParams) {
+            timestampParams.style.display = 'grid';
+        }
+        // Reset extract button
+        const originalExtractBtn = document.getElementById('extract-btn');
+        if (originalExtractBtn) {
+            originalExtractBtn.disabled = false;
+            originalExtractBtn.innerHTML = 'Extract Frames';
+            originalExtractBtn.title = '';
+        }
+    }
+    
+    // Add Q&A-only messaging for URL videos
+    if (video.source === 'url') {
+        chatMessagesDiv.innerHTML = `
+            <div class="chat-welcome">
+                <h4>💡 This video is Q&A-ready</h4>
+                <p>Frame extraction will download the video when triggered. Ask any questions about this video below.</p>
+            </div>
+        `;
+    } else {
+        chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
+    }
+    
     chatInput.value = DEFAULT_QUESTION;
     chatInput.focus();
 }
@@ -494,7 +546,17 @@ async function uploadVideo(file) {
 
 // Extraction Handler
 async function handleExtraction() {
-    if (!currentVideo || !currentVideo.local_filepath) {
+    if (!currentVideo) {
+        showToast('Please select a video first', 'error');
+        return;
+    }
+    
+    if (currentVideo.source === 'url') {
+        showToast('Frame extraction coming soon — this will download the video', 'info');
+        return;
+    }
+    
+    if (!currentVideo.local_filepath) {
         showToast('Please select a video with local copy first', 'error');
         return;
     }
