@@ -23,7 +23,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the application code
 COPY keyframe_extractor.py .
 COPY web_app.py .
-COPY reka_service.py .
+COPY gemini_service.py .
 COPY db_service.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
