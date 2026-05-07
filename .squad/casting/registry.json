@@ -1,0 +1,60 @@
+{
+  "agents": {
+    "hicks": {
+      "persistent_name": "Hicks",
+      "universe": "Alien",
+      "role": "Lead/Architect",
+      "created_at": "2026-03-09T11:58:34Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "vasquez": {
+      "persistent_name": "Vasquez",
+      "universe": "Alien",
+      "role": "DevOps Engineer",
+      "created_at": "2026-03-09T11:58:34Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "bishop": {
+      "persistent_name": "Bishop",
+      "universe": "Alien",
+      "role": "Tester/QA",
+      "created_at": "2026-03-09T11:58:34Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "ripley": {
+      "persistent_name": "Ripley",
+      "universe": "Alien",
+      "role": "Backend Developer",
+      "created_at": "2026-05-07T16:01:07Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "hudson": {
+      "persistent_name": "Hudson",
+      "universe": "Alien",
+      "role": "Frontend Developer",
+      "created_at": "2026-05-07T16:01:07Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "scribe": {
+      "persistent_name": "Scribe",
+      "universe": "exempt",
+      "role": "Session Logger",
+      "created_at": "2026-03-09T11:58:34Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "ralph": {
+      "persistent_name": "Ralph",
+      "universe": "exempt",
+      "role": "Work Monitor",
+      "created_at": "2026-03-09T11:58:34Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
+}
