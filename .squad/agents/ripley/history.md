@@ -161,3 +161,20 @@
 - Added `convert_url_video_to_local(url_filename, local_filename)` to `db_service.py` — renames the DB record from pseudo-filename to real local file after download
 - Added `POST /videos/extract-frames-url` route to `web_app.py` — downloads URL video via yt-dlp, updates DB, runs `extract_keyframes()`
 - Updated `static/js/app.js` — enabled disabled Extract Frames button for URL videos; wired it to new endpoint via `handleUrlExtraction()`; refreshes video library on success so URL video appears as local
+
+---
+
+## Issue #28 — Final Reka removal, UUID sanitize_filename, Dockerfile + README
+
+**PR**: https://github.com/fboucher/video2blog/pull/35
+**Branch**: `squad/28-reka-removal-sanitize-dockerfile-readme`
+
+### What was done
+- Deleted `reka_service.py` entirely
+- Removed `import reka_service` and all four `/reka/*` routes (`/reka/status`, `/reka/videos`, `/reka/upload`, `/reka/delete/<id>`) from `web_app.py`
+- Replaced `sanitize_filename(video_name, reka_video_id)` with UUID-based `sanitize_filename(video_name)` — appends `uuid4().hex[:8]` suffix to avoid filename collisions
+- Dockerfile updated: `COPY reka_service.py` → `COPY gemini_service.py`
+- README updated: replaced Reka badge and docs with Gemini API key table; removed all Reka mentions
+- `app.js` cleaned: removed dead `downloadVideo`, `refreshStatus`, `deleteReka` functions; removed `reka_*` field references from upload toast logic and source icon map
+
+**Note**: The full Gemini migration PRD (#21) is now complete with this issue.
