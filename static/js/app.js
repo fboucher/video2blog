@@ -199,8 +199,6 @@ async function loadAllVideos() {
 function displayUnifiedVideoList(videos) {
     videosList.innerHTML = videos.map(video => {
         const sourceIcons = {
-            'synced': { icon: 'sync', color: 'var(--ctp-mocha-green)', title: 'Synced (Reka + Local)' },
-            'reka_only': { icon: 'cloud', color: 'var(--ctp-mocha-blue)', title: 'Reka Only' },
             'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' },
             'url': { icon: 'language', color: 'var(--ctp-mocha-lavender)', title: 'URL Video — Q&A Ready' }
         };
@@ -372,55 +370,6 @@ async function selectVideo(video) {
     chatInput.focus();
 }
 
-async function downloadVideo(video) {
-    showToast('Downloading video...', 'info');
-    
-    try {
-        const response = await fetch('/videos/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                reka_video_id: video.reka_video_id,
-                video_url: video.reka_url,
-                video_name: video.name,
-                reka_indexing_status: video.reka_indexing_status
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            showToast(data.error, 'error');
-            return;
-        }
-        
-        showToast('Video downloaded successfully!', 'success');
-        loadAllVideos();
-    } catch (error) {
-        showToast('Download failed: ' + error.message, 'error');
-    }
-}
-
-async function refreshStatus(rekaVideoId) {
-    try {
-        const response = await fetch(`/reka/refresh-status/${rekaVideoId}`, {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            showToast(data.error, 'error');
-            return;
-        }
-        
-        showToast(`Status updated: ${data.indexing_status}`, 'success');
-        loadAllVideos();
-    } catch (error) {
-        showToast('Failed to refresh status', 'error');
-    }
-}
-
 async function deleteLocal(filename) {
     if (!confirm(`Delete local copy of "${filename}"?`)) return;
     
@@ -450,36 +399,6 @@ async function deleteLocal(filename) {
         }
     } catch (error) {
         showToast('Failed to delete file', 'error');
-    }
-}
-
-async function deleteReka(rekaVideoId) {
-    if (!confirm('Delete this video from Reka?')) return;
-    
-    try {
-        const response = await fetch(`/reka/delete/${rekaVideoId}`, {
-            method: 'DELETE'
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            showToast(data.error, 'error');
-            return;
-        }
-        
-        showToast('Reka video deleted', 'success');
-        loadAllVideos();
-        
-        // Clear selection if deleted
-        if (currentVideo && currentVideo.reka_video_id === rekaVideoId) {
-            currentVideo = null;
-            videoInfo.classList.add('hidden');
-            chatSection.style.display = 'none';
-            paramsSection.style.display = 'none';
-        }
-    } catch (error) {
-        showToast('Failed to delete video', 'error');
     }
 }
 
@@ -554,15 +473,8 @@ async function uploadVideo(file) {
             return;
         }
 
-        // Show success and auto-upload info
-        if (data.reka_synced) {
-            showToast('Video uploaded and synced to Reka!', 'success');
-        } else {
-            showToast('Video uploaded successfully!', 'success');
-            if (data.reka_upload_error) {
-                showToast('Reka sync failed: ' + data.reka_upload_error, 'warning');
-            }
-        }
+        // Show success
+        showToast('Video uploaded successfully!', 'success');
 
         // Reload video list
         loadAllVideos();

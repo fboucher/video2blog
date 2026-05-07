@@ -17,7 +17,6 @@ from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 
 from keyframe_extractor import extract_keyframes, extract_frames_at_timestamps
-import reka_service
 import db_service
 import gemini_service
 
@@ -44,26 +43,18 @@ Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
 db_service.init_db()
 
 
-def sanitize_filename(video_name: str, reka_video_id: str) -> str:
-    """Generate safe filename from video name and Reka video ID.
-    
-    Format: {sanitized_name}_{video_id_prefix}.mp4
-    
-    Args:
-        video_name: Original video name from Reka.
-        reka_video_id: Reka video UUID.
-    
-    Returns:
-        Safe filename suitable for filesystem use.
+def sanitize_filename(video_name: str) -> str:
+    """Return a filesystem-safe filename with a unique suffix.
+
+    Strips special characters from *video_name*, then appends a short
+    random suffix so concurrent uploads of identically-named files don't
+    collide.
     """
-    # Remove non-alphanumeric characters except spaces and hyphens
-    safe_name = re.sub(r'[^\w\s-]', '', video_name).strip().lower()
-    # Replace spaces and multiple hyphens with single underscore
-    safe_name = re.sub(r'[-\s]+', '_', safe_name)
-    # Get first part of UUID (before first hyphen)
-    video_id_prefix = reka_video_id.split('-')[0]
-    # Limit name length and append UUID prefix
-    return f"{safe_name[:80]}_{video_id_prefix}.mp4"
+    import uuid
+    name, ext = os.path.splitext(video_name)
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', name)
+    suffix = uuid.uuid4().hex[:8]
+    return f"{safe_name}_{suffix}{ext}"
 
 
 def allowed_file(filename: str) -> bool:
@@ -787,89 +778,6 @@ def delete_all_frames_api(job_name):
         })
     except Exception as e:
         return jsonify({'error': f'Failed to delete frames: {str(e)}'}), 500
-
-
-# Reka API Endpoints
-
-@app.route('/reka/status')
-def reka_status():
-    """Check if Reka API is configured.
-    
-    Returns:
-        JSON with configuration status.
-    """
-    return jsonify({
-        'configured': reka_service.is_configured(),
-        'message': 'Reka API is configured' if reka_service.is_configured() else 'Reka API key not configured'
-    })
-
-
-@app.route('/reka/videos')
-def list_reka_videos():
-    """List all videos from Reka.
-    
-    Returns:
-        JSON list of Reka videos.
-    """
-    result = reka_service.list_videos()
-    
-    if 'error' in result:
-        return jsonify(result), 400
-    
-    return jsonify(result)
-
-
-@app.route('/reka/upload', methods=['POST'])
-def upload_to_reka():
-    """Upload a local video file to Reka.
-    
-    Returns:
-        JSON response with upload result.
-    """
-    data = request.json
-    
-    if not data or 'filename' not in data:
-        return jsonify({'error': 'No filename provided'}), 400
-    
-    filename = data['filename']
-    video_name = data.get('video_name', filename)
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    if not os.path.exists(filepath):
-        return jsonify({'error': 'File not found'}), 404
-    
-    result = reka_service.upload_video(
-        video_path=filepath,
-        video_name=video_name,
-        index=True,
-        enable_thumbnails=False
-    )
-    
-    if 'error' in result:
-        return jsonify(result), 400
-    
-    return jsonify(result)
-
-
-@app.route('/reka/delete/<video_id>', methods=['DELETE'])
-def delete_reka_video(video_id):
-    """Delete a video from Reka.
-    
-    Args:
-        video_id: ID of the video to delete.
-    
-    Returns:
-        JSON response with deletion result.
-    """
-    result = reka_service.delete_video(video_id)
-    
-    if 'error' in result:
-        return jsonify(result), 400
-    
-    # Clean up database sync record if exists
-    db_service.delete_sync_by_reka_id(video_id)
-    
-    return jsonify(result)
 
 
 @app.route('/gemini/generate-blog', methods=['POST'])
