@@ -432,6 +432,55 @@ def upload_to_gemini():
         return jsonify({'error': str(exc)}), 500
 
 
+@app.route('/videos/extract-frames-url', methods=['POST'])
+def extract_frames_url():
+    """Download a URL video via yt-dlp and run keyframe extraction.
+
+    Expects JSON body: {"filename": "<pseudo-filename>"}
+    Returns JSON: {"frames": [...], "filename": "<local_filename>"} or error.
+    """
+    data = request.get_json()
+    filename = data.get('filename') if data else None
+
+    if not filename:
+        return jsonify({'error': 'filename required'}), 400
+
+    record = db_service.get_sync_by_filename(filename)
+    if not record:
+        return jsonify({'error': 'video not found'}), 404
+
+    source_url = record.get('source_url')
+    if not source_url:
+        return jsonify({'error': 'no source URL for this video'}), 400
+
+    upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
+    local_stem = os.path.splitext(filename)[0]
+    output_path = os.path.join(upload_folder, local_stem)
+
+    try:
+        local_path = gemini_service.download_video_from_url(source_url, output_path)
+        local_filename = os.path.basename(local_path)
+    except Exception as e:
+        return jsonify({'error': f'Download failed: {e}'}), 500
+
+    db_service.convert_url_video_to_local(filename, local_filename)
+
+    output_dir = os.path.join(app.config['OUTPUT_FOLDER'], Path(local_filename).stem)
+    try:
+        results = extract_keyframes(local_path, output_dir)
+        frame_files = sorted(f for f in os.listdir(output_dir) if f.endswith('.jpg'))
+        return jsonify({
+            'success': True,
+            'filename': local_filename,
+            'total_frames': len(results),
+            'frames': frame_files[:20],
+            'all_frames_count': len(frame_files),
+            'output_dir': output_dir,
+        })
+    except Exception as e:
+        return jsonify({'error': f'Frame extraction failed: {e}'}), 500
+
+
 @app.route('/upload-from-url', methods=['POST'])
 def upload_from_url():
     """Register a video URL for Gemini Q&A without downloading the file.

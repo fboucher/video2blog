@@ -194,6 +194,42 @@ def ask(file_ref: str, messages: list) -> str:
     return response.text.strip()
 
 
+def download_video_from_url(url: str, output_path: str) -> str:
+    """Download a video from url to output_path using yt-dlp.
+
+    Args:
+        url: Publicly accessible video URL.
+        output_path: Desired output path (without extension; yt-dlp may append one).
+
+    Returns:
+        The actual file path written to disk.
+
+    Raises:
+        RuntimeError: If yt-dlp exits with a non-zero return code.
+        FileNotFoundError: If the expected output file cannot be located.
+    """
+    import subprocess
+    import shutil
+
+    ytdlp = shutil.which('yt-dlp') or 'yt-dlp'
+    result = subprocess.run(
+        [ytdlp, '-o', output_path, '--no-playlist', url],
+        capture_output=True, text=True, timeout=300
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"yt-dlp failed: {result.stderr}")
+
+    if os.path.exists(output_path):
+        return output_path
+
+    for ext in ['.mp4', '.webm', '.mkv']:
+        candidate = output_path + ext
+        if os.path.exists(candidate):
+            return candidate
+
+    raise FileNotFoundError(f"yt-dlp output not found at {output_path}")
+
+
 def delete_file(file_uri: str) -> bool:
     """
     Delete a file from the Gemini Files API.
