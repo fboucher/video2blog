@@ -963,36 +963,75 @@ def delete_reka_video(video_id):
     return jsonify(result)
 
 
-@app.route('/reka/ask', methods=['POST'])
-def ask_reka_question():
-    """Ask a question about a video using Reka Q&A.
-    
-    Returns:
-        JSON response with answer.
+def _resolve_gemini_uri(filename: str, filepath: str) -> tuple[str, str]:
+    """Return (gemini_uri, cache_status), uploading if needed.
+
+    Checks the DB for a fresh URI (< 48 h).  If missing or expired,
+    re-uploads the file and persists the new URI.
+
+    Raises:
+        RuntimeError: If the upload fails.
+        FileNotFoundError: If filepath does not exist.
     """
-    data = request.json
-    
-    if not data or 'video_id' not in data or 'question' not in data:
-        return jsonify({'error': 'video_id and question are required'}), 400
-    
-    video_id = data['video_id']
-    question = data['question']
-    
-    # Get conversation history if provided
+    gemini_info = db_service.get_gemini_file_info(filename)
+    cache = _gemini_cache_status(gemini_info)
+
+    if cache.get("gemini_cache_status") == "fresh":
+        return gemini_info["uri"], "fresh"
+
+    # Expired or not uploaded — (re-)upload now
+    uri = gemini_service.upload_video(filepath)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    db_service.update_gemini_upload(filename, uri, timestamp)
+    return uri, "re-uploaded"
+
+
+@app.route('/gemini/ask', methods=['POST'])
+def ask_gemini_question():
+    """Ask a question about a local video using Gemini Q&A.
+
+    Body:
+        {"filename": "video.mp4",
+         "messages": [{"role": "user", "content": "What is this about?"}]}
+
+    Returns:
+        {"answer": str, "gemini_cache_status": "fresh"|"re-uploaded"}
+    """
+    if not gemini_service.is_configured():
+        return jsonify({'error': 'Gemini not configured'}), 503
+
+    data = request.get_json()
+    if not data or 'filename' not in data:
+        return jsonify({'error': 'filename is required'}), 400
+
     messages = data.get('messages', [])
-    
-    # Add the new question
-    messages.append({
-        'role': 'user',
-        'content': question
-    })
-    
-    result = reka_service.ask_question(video_id, messages)
-    
-    if 'error' in result:
-        return jsonify(result), 400
-    
-    return jsonify(result)
+    if not messages:
+        return jsonify({'error': 'messages must not be empty'}), 400
+
+    filename = data['filename']
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    if not os.path.exists(filepath):
+        return jsonify({'error': f'Video file not found: {filename}'}), 400
+
+    try:
+        uri, cache_status = _resolve_gemini_uri(filename, filepath)
+    except Exception as exc:
+        print(f"[gemini/ask] Upload failed for {filename}: {exc}")
+        return jsonify({'error': f'Gemini upload failed: {exc}'}), 500
+
+    # Convert REST message format to Gemini parts format
+    gemini_messages = [
+        {"role": msg["role"], "parts": [msg.get("content", "")]}
+        for msg in messages
+    ]
+
+    try:
+        answer = gemini_service.ask(file_ref=uri, messages=gemini_messages)
+    except Exception as exc:
+        print(f"[gemini/ask] Ask failed for {filename}: {exc}")
+        return jsonify({'error': f'Gemini request failed: {exc}'}), 500
+
+    return jsonify({'answer': answer, 'gemini_cache_status': cache_status})
 
 
 if __name__ == '__main__':

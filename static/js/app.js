@@ -703,8 +703,8 @@ function showError(message) {
 
 // Chat Functions
 async function sendChatMessage() {
-    if (!currentVideo || !currentVideo.reka_video_id) {
-        showToast('Please select a video with Reka sync first', 'error');
+    if (!currentVideo || !currentVideo.filename) {
+        showToast('Please select a local video first', 'error');
         return;
     }
     
@@ -724,15 +724,14 @@ async function sendChatMessage() {
     chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
     
     try {
-        const response = await fetchWithTimeout('/reka/ask', {
+        const response = await fetchWithTimeout('/gemini/ask', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                video_id: currentVideo.reka_video_id,
-                question: question,
-                messages: chatMessages
+                filename: currentVideo.filename,
+                messages: [...chatMessages, { role: 'user', content: question }]
             })
         }, 120000); // 2 minutes timeout
         
@@ -747,23 +746,7 @@ async function sendChatMessage() {
         }
         
         // Extract answer from response
-        let answer = 'No response received';
-        
-        if (data.data?.chat_response) {
-            try {
-                const chatResponse = JSON.parse(data.data.chat_response);
-                if (chatResponse.sections && chatResponse.sections.length > 0) {
-                    answer = chatResponse.sections
-                        .filter(s => s.section_type === 'markdown')
-                        .map(s => s.markdown)
-                        .join('\n\n');
-                }
-            } catch (e) {
-                answer = data.data.chat_response;
-            }
-        } else if (data.data?.answer) {
-            answer = data.data.answer;
-        }
+        let answer = data.answer || 'No response received';
         
         // Auto-extract timestamps from AI response
         const timestampMatch = answer.match(/TIMESTAMPS:\s*([\d.,\s]+)/i);
