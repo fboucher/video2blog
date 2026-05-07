@@ -55,3 +55,61 @@
 
 ## Learnings
 - Initial setup complete. Ready for issue #23 template implementation.
+
+## Issue #26 Implementation — URL Video Q&A without Download
+
+**Date:** 2026-05-07  
+**Status:** ✅ Complete (PR #33)  
+**Branch:** `squad/26-url-video-qa-without-download`
+
+### UI Components Built
+
+1. **URL Input Form Updates**
+   - Button text: "Add URL for Q&A" (previously "Upload to Reka")
+   - Button icon: `add_link` (previously `cloud_upload`)
+   - Toast messages updated to remove Reka branding
+
+2. **URL Video Badge & Library Display**
+   - New source type: `url` (alongside synced, reka_only, local_only)
+   - Badge: "🌐 URL video — Q&A ready" (badge-lavender color)
+   - Icon: `language` in lavender color
+   - Proper labeling in video list
+
+3. **Q&A-Only Messaging**
+   - When URL video is selected, shows:
+     - "💡 This video is Q&A-ready"
+     - "Frame extraction will download the video when triggered"
+   - Q&A input/button work normally (uses `/gemini/ask` API)
+
+4. **Frame Extraction CTA (Stub)**
+   - Disabled button for URL videos
+   - Label: "Extract Frames (downloads video)"
+   - Tooltip: "Frame extraction coming soon — this will download the video"
+   - Shows toast message when clicked: "Frame extraction coming soon..."
+   - Actual implementation deferred to issue #27
+
+### CSS Additions
+- `.badge-lavender` — New badge variant with Catppuccin lavender color
+- `.url-video-message` — Styled info box for Q&A-only messaging
+  - Uses flexbox for icon + text layout
+  - Blue background with border
+  - Responsive padding and typography
+
+### JavaScript Updates
+- `uploadFromUrl()` — Updated toast messages (no Reka references)
+- `displayUnifiedVideoList()` — Added URL source icon + badge rendering
+- `selectVideo()` — Conditional logic for URL vs local video params display
+- `handleExtraction()` — Check for URL source and show stub message
+
+### UI Patterns Established
+- **Source Icons**: Green (synced), Blue (reka_only), Yellow (local_only), Lavender (url)
+- **Conditional UI Rendering**: Toggle params/CTA based on video.source
+- **Toast Notifications**: User feedback for URL uploads and extraction attempts
+- **Disabled State Styling**: Extract button disabled for URL videos with title attribute
+
+### Notes
+- No local file created for URL videos (pseudo-filename used: `url-<hash>`)
+- Q&A capability available immediately (no download required)
+- Frame extraction will require yt-dlp integration (issue #27)
+- Reka branding successfully removed from URL upload flow
+
