@@ -227,28 +227,19 @@ function displayUnifiedVideoList(videos) {
                         Select
                     </button>
                 ` : `
-                    <button class="file-select-btn" disabled title="Video must be synced and indexed">
+                    <button class="file-select-btn" disabled title="Video not ready for processing">
                         <span class="material-symbols-rounded">play_circle</span>
                         Select
                     </button>
                 `}
-                ${video.can_download ? `
-                    <button class="file-action-btn" onclick='downloadVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Download to local">
-                        <span class="material-symbols-rounded">download</span>
-                    </button>
-                ` : ''}
-                ${video.can_refresh_status ? `
-                    <button class="file-action-btn" onclick="refreshStatus('${video.reka_video_id}')" title="Refresh indexing status">
-                        <span class="material-symbols-rounded">refresh</span>
+                ${(video.gemini_cache_status === 'expired' || video.gemini_cache_status === 'not_uploaded') ? `
+                    <button class="file-action-btn upload-gemini-btn" onclick='uploadToGemini(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Upload to Gemini cache">
+                        <span class="material-symbols-rounded">cloud_upload</span>
+                        Upload to Gemini
                     </button>
                 ` : ''}
                 ${video.can_delete_local ? `
                     <button class="file-delete-btn" onclick="deleteLocal('${escapeHtml(video.local_filename)}')" title="Delete local copy">
-                        <span class="material-symbols-rounded">delete</span>
-                    </button>
-                ` : ''}
-                ${video.can_delete_reka && !video.can_delete_local ? `
-                    <button class="file-delete-btn" onclick="deleteReka('${video.reka_video_id}')" title="Delete from Reka">
                         <span class="material-symbols-rounded">delete</span>
                     </button>
                 ` : ''}
@@ -259,21 +250,25 @@ function displayUnifiedVideoList(videos) {
 }
 
 function getStatusBadge(video) {
-    if (!video.reka_indexing_status) return '';
+    if (!video.gemini_cache_status) return '';
     
     const badges = {
-        'indexed': { class: 'badge-green', text: 'Indexed', icon: 'check_circle' },
-        'indexing': { class: 'badge-yellow', text: 'Indexing...', icon: 'sync' },
-        'failed': { class: 'badge-red', text: 'Failed', icon: 'error' },
-        'unknown': { class: 'badge-gray', text: 'Unknown', icon: 'help' }
+        'fresh': { class: 'badge-green', text: 'Ready', icon: 'check_circle' },
+        'expired': { class: 'badge-red', text: 'Expired', icon: 'schedule' },
+        'not_uploaded': { class: 'badge-gray', text: 'Not uploaded', icon: 'cloud_upload' }
     };
     
-    const badge = badges[video.reka_indexing_status] || badges.unknown;
+    const badge = badges[video.gemini_cache_status] || badges['not_uploaded'];
+    let badgeText = badge.text;
+    
+    if (video.gemini_cache_status === 'fresh' && video.expires_in_hours) {
+        badgeText = `Ready (${video.expires_in_hours}h)`;
+    }
     
     return `
         <span class="badge ${badge.class}">
             <span class="material-symbols-rounded">${badge.icon}</span>
-            ${badge.text}
+            ${badgeText}
         </span>
     `;
 }
@@ -433,6 +428,43 @@ async function deleteReka(rekaVideoId) {
         }
     } catch (error) {
         showToast('Failed to delete video', 'error');
+    }
+}
+
+async function uploadToGemini(video) {
+    const button = event.target.tagName === 'BUTTON' ? event.target : event.target.closest('button');
+    if (!button || !button.classList.contains('upload-gemini-btn')) {
+        showToast('Button element not found', 'error');
+        return;
+    }
+    
+    const originalHtml = button.innerHTML;
+    
+    try {
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span> Uploading...';
+        
+        const response = await fetch('/videos/upload-to-gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: video.filename })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+            showToast('Upload failed: ' + data.error, 'error');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+            return;
+        }
+        
+        showToast('Video uploaded to Gemini successfully!', 'success');
+        loadAllVideos();
+    } catch (error) {
+        showToast('Upload to Gemini failed: ' + error.message, 'error');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
     }
 }
 
