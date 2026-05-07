@@ -115,10 +115,11 @@ def test_delete_file_calls_files_delete():
 
 # ── generate_blog ────────────────────────────────────────────────────────────
 
-def test_generate_blog_returns_dict_with_blog_and_timestamps():
+def test_generate_blog_returns_dict_with_draft_and_timestamps():
     """
-    generate_blog must return a dict with 'blog' (str) and 'timestamps' (list)
-    keys regardless of whether the model includes a JSON block.
+    generate_blog must return a dict with 'draft' (str) and 'timestamps' (list[int])
+    keys. When the model returns plain text (not JSON), draft holds the raw text
+    and timestamps is an empty list.
     """
     import google.generativeai as genai
 
@@ -135,9 +136,9 @@ def test_generate_blog_returns_dict_with_blog_and_timestamps():
         result = gemini_service.generate_blog(file_ref, messages)
 
     assert isinstance(result, dict), "generate_blog must return a dict"
-    assert "blog" in result, "result must have a 'blog' key"
+    assert "draft" in result, "result must have a 'draft' key"
     assert "timestamps" in result, "result must have a 'timestamps' key"
-    assert isinstance(result["blog"], str)
+    assert isinstance(result["draft"], str)
     assert isinstance(result["timestamps"], list)
 
 

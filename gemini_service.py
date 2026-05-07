@@ -89,7 +89,7 @@ def upload_from_url(url: str) -> str:
 
 def generate_blog(file_ref: str, messages: list) -> dict:
     """
-    Generate a blog post from a video reference and conversation history.
+    Generate a blog post and suggested timestamps from a video reference.
 
     Args:
         file_ref: Gemini file URI (from upload_video) or a public URL.
@@ -97,57 +97,58 @@ def generate_blog(file_ref: str, messages: list) -> dict:
                   [{"role": "user"|"model", "parts": [str]}, ...]
 
     Returns:
-        {"blog": str, "timestamps": list}
-        Timestamps is a list of dicts like {"time": "00:01:23", "label": "..."}.
+        {"draft": str, "timestamps": list[int]}
+        timestamps is a list of seconds (integers) where key moments occur.
+        timestamps is [] if Gemini did not return any or parsing failed.
 
     Raises:
         RuntimeError: If GEMINI_API_KEY is not set or the API call fails.
     """
+    import json
+    import re
+
     model = _client()
 
     system_prompt = (
         "You are a professional blog writer. "
         "Analyze the provided video and produce a detailed, engaging blog post. "
-        "At the end of your response, include a JSON block wrapped in ```json ... ``` "
-        "containing a list of key timestamps in the format: "
-        '[{"time": "HH:MM:SS", "label": "short description"}, ...]'
+        "Return a JSON object with exactly two fields:\n"
+        '- "draft": the full blog post as markdown\n'
+        '- "timestamps": a list of seconds (integers) where key moments occur, e.g. [10, 45, 120]\n'
+        "Return only the JSON object — no code fences, no extra text."
     )
 
-    # Build the parts list: video reference + history + generation request
-    if file_ref.startswith("files/") or file_ref.startswith("https://generativelanguage"):
-        video_part = genai.get_file(file_ref.replace("files/", "", 1)) if file_ref.startswith("files/") else {"file_uri": file_ref, "mime_type": "video/mp4"}
+    # Resolve video part reference
+    if file_ref.startswith("files/"):
+        video_part = genai.get_file(file_ref.replace("files/", "", 1))
     else:
-        # Treat as a public URL
         video_part = {"file_uri": file_ref, "mime_type": "video/mp4"}
 
-    # Flatten conversation history for the multi-turn call
-    history = []
-    for msg in messages:
-        history.append({"role": msg["role"], "parts": msg["parts"]})
+    history = [{"role": msg["role"], "parts": msg["parts"]} for msg in messages]
 
     chat = model.start_chat(history=history)
     response = chat.send_message(
         [video_part, system_prompt] if not history else system_prompt
     )
 
-    raw_text: str = response.text
+    raw_text: str = response.text.strip()
 
-    # Extract timestamps JSON block if present
-    import json
-    import re
-    timestamps: list = []
-    json_match = re.search(r"```json\s*(.*?)\s*```", raw_text, re.DOTALL)
-    if json_match:
-        try:
-            timestamps = json.loads(json_match.group(1))
-        except json.JSONDecodeError:
-            timestamps = []
-        # Remove the JSON block from the blog text
-        blog_text = raw_text[: json_match.start()].strip()
-    else:
-        blog_text = raw_text.strip()
+    # Strip optional code fences Gemini may add despite instructions
+    fenced = re.match(r"^```(?:json)?\s*(.*?)\s*```$", raw_text, re.DOTALL)
+    if fenced:
+        raw_text = fenced.group(1).strip()
 
-    return {"blog": blog_text, "timestamps": timestamps}
+    try:
+        parsed = json.loads(raw_text)
+        draft = str(parsed.get("draft", ""))
+        raw_timestamps = parsed.get("timestamps", [])
+        timestamps = [int(t) for t in raw_timestamps if isinstance(t, (int, float))]
+    except (json.JSONDecodeError, ValueError):
+        # Fallback: treat entire response as draft, no timestamps
+        draft = response.text.strip()
+        timestamps = []
+
+    return {"draft": draft, "timestamps": timestamps}
 
 
 def ask(file_ref: str, messages: list) -> str:

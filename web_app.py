@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 import io
+import hashlib
 import json
 import os
 import re
 import time
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Any, List
 from urllib.parse import urlparse
@@ -15,6 +17,7 @@ from werkzeug.utils import secure_filename
 from keyframe_extractor import extract_keyframes, extract_frames_at_timestamps
 import reka_service
 import db_service
+import gemini_service
 
 
 # Constants
@@ -23,6 +26,7 @@ UPLOAD_FOLDER = '/app/uploads'
 OUTPUT_FOLDER = '/app/output'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mov', 'mkv', 'webm', 'flv'}
 MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
+GEMINI_CACHE_TTL_HOURS = 48
 
 # Flask app configuration
 app = Flask(__name__, template_folder='templates', static_folder='static')
@@ -89,6 +93,53 @@ def is_valid_url(url: str) -> bool:
         r'(?::\d+)?'  # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE)
     return url_pattern.match(url) is not None
+
+
+def _gemini_cache_status(gemini_info: dict | None) -> dict:
+    """Return cache status dict for a Gemini file info record."""
+    if not gemini_info or not gemini_info.get("uri"):
+        return {"gemini_cache_status": "not_uploaded"}
+    uploaded_at_str = gemini_info.get("uploaded_at")
+    if not uploaded_at_str:
+        return {"gemini_cache_status": "not_uploaded"}
+    try:
+        uploaded_at = datetime.fromisoformat(uploaded_at_str)
+        if uploaded_at.tzinfo is None:
+            uploaded_at = uploaded_at.replace(tzinfo=timezone.utc)
+        age_hours = (datetime.now(timezone.utc) - uploaded_at).total_seconds() / 3600
+        if age_hours < GEMINI_CACHE_TTL_HOURS:
+            return {"gemini_cache_status": "fresh", "age_hours": round(age_hours, 2)}
+        return {"gemini_cache_status": "expired", "age_hours": round(age_hours, 2)}
+    except (ValueError, TypeError):
+        return {"gemini_cache_status": "not_uploaded"}
+
+
+def _resolve_gemini_uri(filename: str, filepath: str | None = None) -> tuple[str, str]:
+    """Return (gemini_uri, cache_status), uploading from disk only when needed.
+
+    URL-based videos (where gemini_file_uri is a public URL) are always
+    treated as fresh — Gemini handles them natively and they never expire.
+    """
+    gemini_info = db_service.get_gemini_file_info(filename)
+
+    if gemini_info and gemini_info.get("uri"):
+        uri = gemini_info["uri"]
+        # URL refs are handled natively by Gemini — no TTL applies
+        if uri.startswith("http://") or uri.startswith("https://"):
+            return uri, "fresh"
+
+    cache = _gemini_cache_status(gemini_info)
+
+    if cache.get("gemini_cache_status") == "fresh":
+        return gemini_info["uri"], "fresh"
+
+    if not filepath or not os.path.exists(filepath):
+        raise FileNotFoundError(f"Local video file not found for re-upload: {filepath!r}")
+
+    uri = gemini_service.upload_video(filepath)
+    timestamp = datetime.now(timezone.utc).isoformat()
+    db_service.update_gemini_upload(filename, uri, timestamp)
+    return uri, "re-uploaded"
 
 
 @app.route('/')
@@ -535,63 +586,63 @@ def upload_file():
 
 @app.route('/upload-from-url', methods=['POST'])
 def upload_from_url():
-    """Handle video upload from URL by sending directly to Reka.
+    """Register a video URL for Gemini Q&A without downloading the file.
 
     Flow:
     1. Validate URL format
-    2. Send URL to Reka API for direct upload/indexing
-    3. Reka downloads and indexes the video
-    4. Return video_id to frontend
-    5. Video appears in list as "Reka" video (no local copy)
+    2. Return existing record if this URL was already registered
+    3. Generate a pseudo-filename (url-<md5>) as the DB key
+    4. Store the URL as the Gemini file reference (no upload performed)
+    5. Return qa_ready signal for the frontend
     """
-    data = request.json
+    data = request.get_json()
 
     if not data or 'url' not in data:
         return jsonify({'error': 'No URL provided'}), 400
 
     video_url = data['url'].strip()
 
-    # Validate URL format
     if not is_valid_url(video_url):
         return jsonify({'error': 'Invalid URL format. Must start with http:// or https://'}), 400
 
-    # Check if Reka is configured
-    if not reka_service.is_configured():
-        return jsonify({'error': 'Reka API is not configured. URL uploads require Reka API key.'}), 400
+    # Return existing record if this URL was already registered
+    existing = db_service.get_video_by_url(video_url)
+    if existing:
+        return jsonify({
+            'filename': existing['local_filename'],
+            'gemini_cache_status': 'fresh',
+            'source': 'url',
+            'qa_ready': True,
+        })
 
-    try:
-        # Generate a video name from URL or use user-provided name
-        video_name = data.get('video_name')
-        if not video_name:
-            # Extract simple name from URL
-            parsed = urlparse(video_url)
-            video_name = f"video_{parsed.netloc}_{int(time.time())}"
+    # Derive a stable pseudo-filename from the URL
+    url_hash = hashlib.md5(video_url.encode()).hexdigest()[:12]
+    pseudo_filename = f"url-{url_hash}"
 
-        # Upload to Reka directly from URL
-        result = reka_service.upload_video_from_url(
-            video_url=video_url,
-            video_name=video_name,
-            index=True,
-            enable_thumbnails=False
-        )
+    video_name = data.get('video_name') or pseudo_filename
 
-        if 'error' in result:
-            return jsonify(result), 400
+    # Register the record in the DB (no local file created)
+    db_service.add_sync(
+        local_filename=pseudo_filename,
+        video_name=video_name,
+        sync_status='synced',
+        source_url=video_url,
+    )
 
-        response = {
-            'success': True,
-            'video_id': result['video_id'],
-            'video_name': video_name,
-            'source_url': video_url,
-            'message': 'Video uploaded to Reka successfully',
-            'reka_upload': True,
-            'local_file': False  # No local copy
-        }
+    # Obtain the URL ref from gemini_service and persist it as the file URI
+    url_ref = gemini_service.upload_from_url(video_url)
+    db_service.update_gemini_upload(
+        pseudo_filename,
+        url_ref,
+        datetime.now(timezone.utc).isoformat(),
+    )
 
-        return jsonify(response)
-
-    except Exception as e:
-        return jsonify({'error': f'Upload failed: {str(e)}'}), 500
+    return jsonify({
+        'filename': pseudo_filename,
+        'gemini_cache_status': 'fresh',
+        'source': 'url',
+        'qa_ready': True,
+    })
 
 
 @app.route('/extract', methods=['POST'])
@@ -963,36 +1014,62 @@ def delete_reka_video(video_id):
     return jsonify(result)
 
 
-@app.route('/reka/ask', methods=['POST'])
-def ask_reka_question():
-    """Ask a question about a video using Reka Q&A.
-    
+@app.route('/gemini/generate-blog', methods=['POST'])
+def gemini_generate_blog():
+    """Generate a blog post from a local video using Gemini.
+
+    Expects JSON body: {"filename": str, "messages": list (optional)}
+
     Returns:
-        JSON response with answer.
+        JSON: {"blog": str, "frames": list, "source": str, "gemini_cache_status": str}
     """
-    data = request.json
-    
-    if not data or 'video_id' not in data or 'question' not in data:
-        return jsonify({'error': 'video_id and question are required'}), 400
-    
-    video_id = data['video_id']
-    question = data['question']
-    
-    # Get conversation history if provided
+    data = request.get_json()
+
+    if not data or 'filename' not in data:
+        return jsonify({'error': 'filename is required'}), 400
+
+    if not gemini_service.is_configured():
+        return jsonify({'error': 'Gemini API is not configured'}), 503
+
+    filename = secure_filename(data['filename'])
     messages = data.get('messages', [])
-    
-    # Add the new question
-    messages.append({
-        'role': 'user',
-        'content': question
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+
+    if not os.path.exists(filepath):
+        return jsonify({'error': 'Video file not found'}), 404
+
+    try:
+        uri, cache_status = _resolve_gemini_uri(filename, filepath)
+    except Exception as e:
+        return jsonify({'error': f'Failed to resolve Gemini file URI: {str(e)}'}), 500
+
+    try:
+        result = gemini_service.generate_blog(uri, messages)
+    except Exception as e:
+        return jsonify({'error': f'Blog generation failed: {str(e)}'}), 500
+
+    draft = result.get('draft', '')
+    timestamps = result.get('timestamps', [])
+    output_dir = os.path.join(app.config['OUTPUT_FOLDER'], Path(filename).stem)
+
+    try:
+        if timestamps:
+            frames = extract_frames_at_timestamps(filepath, output_dir, [float(t) for t in timestamps])
+            source = 'gemini-timestamps'
+        else:
+            frames = extract_keyframes(filepath, output_dir)
+            source = 'scene-detection'
+    except Exception as e:
+        return jsonify({'error': f'Frame extraction failed: {str(e)}'}), 500
+
+    frame_files = [f['filename'] for f in frames]
+
+    return jsonify({
+        'blog': draft,
+        'frames': frame_files,
+        'source': source,
+        'gemini_cache_status': cache_status,
     })
-    
-    result = reka_service.ask_question(video_id, messages)
-    
-    if 'error' in result:
-        return jsonify(result), 400
-    
-    return jsonify(result)
 
 
 if __name__ == '__main__':
