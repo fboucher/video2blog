@@ -193,3 +193,24 @@ The function was defined twice. The first definition (lines 91–107) used `GEMI
 - `app.js` cleaned: removed dead `downloadVideo`, `refreshStatus`, `deleteReka` functions; removed `reka_*` field references from upload toast logic and source icon map
 
 **Note**: The full Gemini migration PRD (#21) is now complete with this issue.
+
+---
+
+## Learnings
+
+### Bug Fix — init_db column ordering crash + google-genai SDK migration (2026-05-09)
+
+**Bug 1 — `CREATE INDEX` before `ALTER TABLE` migration:**
+`init_db()` was creating `idx_source_url` on line 49 *before* the `ALTER TABLE ADD COLUMN source_url` migration on line 52. On existing databases that predate the `source_url` column, SQLite raised `OperationalError: no such column: source_url`. Fix: moved the index creation to after the try/except migration block.
+
+**Pattern confirmed:** Always run schema migrations (ALTER TABLE) before any index or constraint that depends on the new column — even within a single `init_db()` function.
+
+**Bug 2 — FutureWarning from deprecated `google-generativeai` package:**
+Google ended support for `google.generativeai`; new SDK is `google.genai`. Key API differences:
+- Old: `genai.configure(api_key=key); model = genai.GenerativeModel(name); chat = model.start_chat(history=...); chat.send_message(...)`
+- New: `client = genai.Client(api_key=key); chat = client.chats.create(model=name, history=...); chat.send_message(...)`
+- Files: `genai.upload_file(path, mime_type=...)` → `client.files.upload(path=path)`; `genai.get_file(name)` → `client.files.get(name=name)`; `genai.delete_file(name)` → `client.files.delete(name=name)`
+- `_client()` now returns `genai.Client` instead of `genai.GenerativeModel` — cleaner single abstraction point
+
+**Test strategy:** Patching `gemini_service._client` to return a `MagicMock` is cleaner than mocking module-level `genai` attributes. Tests no longer import `google.generativeai` at all.
+
