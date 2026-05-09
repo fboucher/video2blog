@@ -9,6 +9,7 @@ import os
 import time
 from typing import Optional
 from google import genai
+from google.genai import types
 
 
 def is_configured() -> bool:
@@ -49,7 +50,7 @@ def upload_video(local_path: str) -> str:
         raise FileNotFoundError(f"Video file not found: {local_path}")
 
     client = _client()
-    uploaded = client.files.upload(path=local_path)
+    uploaded = client.files.upload(file=local_path)
 
     # Wait for the file to finish processing
     max_wait = 300  # seconds
@@ -65,6 +66,34 @@ def upload_video(local_path: str) -> str:
         )
 
     return uploaded.uri
+
+
+def _build_history(messages: list) -> list:
+    """Convert message dicts to types.Content objects required by chats.create."""
+    result = []
+    for msg in messages:
+        # Accept both 'parts' (Gemini format) and 'content' (frontend chat format)
+        raw = msg.get("parts") if "parts" in msg else msg.get("content", "")
+        raw_parts = raw if isinstance(raw, list) else [raw]
+        parts = []
+        for p in raw_parts:
+            if isinstance(p, str):
+                parts.append(types.Part(text=p))
+            elif isinstance(p, types.Part):
+                parts.append(p)
+            elif isinstance(p, dict):
+                parts.append(types.Part.model_validate(p))
+            else:
+                parts.append(p)
+        result.append(types.Content(role=msg["role"], parts=parts))
+    return result
+
+
+def _video_part(file_ref: str, client: genai.Client) -> object:
+    """Return a Part or File object suitable for send_message / generate_content."""
+    if file_ref.startswith("files/"):
+        return client.files.get(name=file_ref)
+    return types.Part.from_uri(file_uri=file_ref, mime_type="video/mp4")
 
 
 def upload_from_url(url: str) -> str:
@@ -115,17 +144,12 @@ def generate_blog(file_ref: str, messages: list) -> dict:
         "Return only the JSON object — no code fences, no extra text."
     )
 
-    # Resolve video part reference
-    if file_ref.startswith("files/"):
-        video_part = client.files.get(name=file_ref)
-    else:
-        video_part = {"file_uri": file_ref, "mime_type": "video/mp4"}
-
-    history = [{"role": msg["role"], "parts": msg["parts"]} for msg in messages]
+    video = _video_part(file_ref, client)
+    history = _build_history(messages)
 
     chat = client.chats.create(model=get_model(), history=history)
     response = chat.send_message(
-        [video_part, system_prompt] if not history else system_prompt
+        [video, system_prompt] if not history else system_prompt
     )
 
     raw_text: str = response.text.strip()
@@ -169,23 +193,21 @@ def ask(file_ref: str, messages: list) -> str:
         raise ValueError("messages must not be empty; provide at least one user turn.")
 
     # Separate history from the current question
-    history = messages[:-1]
+    history = _build_history(messages[:-1])
     current = messages[-1]
 
-    # Resolve file reference
-    if file_ref.startswith("files/"):
-        file_name = file_ref if not file_ref.startswith("files/files/") else file_ref.replace("files/", "", 1)
-        video_part = client.files.get(name=file_name)
-    else:
-        video_part = {"file_uri": file_ref, "mime_type": "video/mp4"}
+    video = _video_part(file_ref, client)
 
     chat = client.chats.create(model=get_model(), history=history)
 
-    # On the first turn, include the video part alongside the question
+    # On the first turn, include the video alongside the question
+    # Accept both 'parts' (Gemini format) and 'content' (frontend chat format)
+    raw = current.get("parts") if "parts" in current else current.get("content", "")
+    raw_parts = raw if isinstance(raw, list) else [raw]
     if not history:
-        user_parts = [video_part] + (current["parts"] if isinstance(current["parts"], list) else [current["parts"]])
+        user_parts = [video] + raw_parts
     else:
-        user_parts = current["parts"] if isinstance(current["parts"], list) else [current["parts"]]
+        user_parts = raw_parts
 
     response = chat.send_message(user_parts)
     return response.text.strip()
