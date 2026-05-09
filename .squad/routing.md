@@ -1,52 +1,93 @@
-# Work Routing
+# video2blog Routing & Ownership
 
-How to decide who handles what.
+## Request Routing by Domain
 
-## Routing Table
+### Backend / Python / Flask / API
+**Owner:** Ripley  
+**Context:** `.squad/agents/ripley/charter.md` + `.squad/agents/ripley/history.md`
 
-| Work Type | Route To | Examples |
-|-----------|----------|----------|
-| Architecture, strategy, scope decisions | Hicks | Docker strategy, repo structure, trade-off analysis |
-| Docker/build optimization, Dockerfile changes | Vasquez | Multi-stage builds, .dockerignore, base image selection |
-| Testing, verification, QA | Bishop | Build smoke tests, regression checks, image validation |
-| Code review | Hicks | Review PRs, check quality, approve changes |
-| Session logging | Scribe | Automatic — never needs routing |
-| Work queue monitoring | Ralph | Issue/PR tracking, backlog |
+**Covered:**
+- Python code changes, Flask routes, request handling
+- Google Gemini API integration, prompts, API calls
+- SQLite database schema, queries, migrations
+- File caching, video processing, yt-dlp integration
+- `web_app.py`, `db_service.py`, `gemini_service.py`, `keyframe_extractor.py`
+- `requirements.txt` (Python dependencies)
+- Issues #22, #23, #24, #25, #26, #27, #28 (backend scope)
 
-## Issue Routing
+**Defer to:**
+- Hudson: Template changes, HTML structure, CSS, JavaScript
+- Bishop: Test strategy, test data, coverage expectations
+- Vasquez: Docker image, deployment pipeline
 
-| Label | Action | Who |
-|-------|--------|-----|
-| `squad` | Triage: analyze issue, evaluate @copilot fit, assign `squad:{member}` label | Lead |
-| `squad:{name}` | Pick up issue and complete the work | Named member |
-| `squad:copilot` | Assign to @copilot for autonomous work (if enabled) | @copilot 🤖 |
+---
 
-### How Issue Assignment Works
+### Frontend / UI / Templates / JavaScript / CSS
+**Owner:** Hudson  
+**Context:** `.squad/agents/hudson/charter.md` + `.squad/agents/hudson/history.md`
 
-1. When a GitHub issue gets the `squad` label, the **Lead** triages it — analyzing content, evaluating @copilot's capability profile, assigning the right `squad:{member}` label, and commenting with triage notes.
-2. **@copilot evaluation:** The Lead checks if the issue matches @copilot's capability profile (🟢 good fit / 🟡 needs review / 🔴 not suitable). If it's a good fit, the Lead may route to `squad:copilot` instead of a squad member.
-3. When a `squad:{member}` label is applied, that member picks up the issue in their next session.
-4. When `squad:copilot` is applied and auto-assign is enabled, `@copilot` is assigned on the issue and picks it up autonomously.
-5. Members can reassign by removing their label and adding another member's label.
-6. The `squad` label is the "inbox" — untriaged issues waiting for Lead review.
+**Covered:**
+- Jinja2 templates in `templates/`
+- CSS in `static/css/`
+- JavaScript in `static/js/`
+- HTML forms, UI components, interactive elements
+- AJAX/fetch calls to Flask endpoints
+- Issues #23 (library status UI), #26 (URL Q&A UI)
 
-### Lead Triage Guidance for @copilot
+**Defer to:**
+- Ripley: Flask routes, API response contracts, backend logic
+- Bishop: UI test coverage expectations
+- Vasquez: Deployment, Docker config
 
-When triaging, the Lead should ask:
+---
 
-1. **Is this well-defined?** Clear title, reproduction steps or acceptance criteria, bounded scope → likely 🟢
-2. **Does it follow existing patterns?** Adding a test, fixing a known bug, updating a dependency → likely 🟢
-3. **Does it need design judgment?** Architecture, API design, UX decisions → likely 🔴
-4. **Is it security-sensitive?** Auth, encryption, access control → always 🔴
-5. **Is it medium complexity with specs?** Feature with clear requirements, refactoring with tests → likely 🟡
+### Infrastructure / Docker / Deployments
+**Owner:** Vasquez  
+**Context:** `.squad/agents/vasquez/charter.md` + `.squad/agents/vasquez/history.md`
 
-## Rules
+**Covered:**
+- `Dockerfile` configuration, image optimization, layer analysis
+- `docker-compose.yml`, container networking
+- Dependency installation (pip, system packages)
+- Issue #28 (Dockerfile + README updates for Gemini migration)
 
-1. **Eager by default** — spawn all agents who could usefully start work, including anticipatory downstream work.
-2. **Scribe always runs** after substantial work, always as `mode: "background"`. Never blocks.
-3. **Quick facts → coordinator answers directly.** Don't spawn an agent for "what port does the server run on?"
-4. **When two agents could handle it**, pick the one whose domain is the primary concern.
-5. **"Team, ..." → fan-out.** Spawn all relevant agents in parallel as `mode: "background"`.
-6. **Anticipate downstream work.** If a feature is being built, spawn the tester to write test cases from requirements simultaneously.
-7. **Issue-labeled work** — when a `squad:{member}` label is applied to an issue, route to that member. The Lead handles all `squad` (base label) triage.
-8. **@copilot routing** — when evaluating issues, check @copilot's capability profile in `team.md`. Route 🟢 good-fit tasks to `squad:copilot`. Flag 🟡 needs-review tasks for PR review. Keep 🔴 not-suitable tasks with squad members.
+**Defer to:**
+- Ripley: Python dependencies in `requirements.txt`
+- Hudson: Static assets, template compilation
+- Liz: Architecture decisions affecting infrastructure
+
+---
+
+### QA / Testing / Coverage
+**Owner:** Bishop  
+**Context:** `.squad/agents/bishop/charter.md` + `.squad/agents/bishop/history.md`
+
+**Covered:**
+- Test strategy, test data fixtures
+- Automated test coverage expectations
+- Test coverage gates before merge
+- Regression testing across Gemini migration
+
+**Collaborate with:**
+- Ripley: Backend test coverage, API endpoint tests
+- Hudson: UI test coverage, template rendering tests
+- Vasquez: Infrastructure tests, Docker image tests
+
+---
+
+## Decision Making & Escalation
+
+| Issue Type | Decision Owner | Collaborators |
+|-----------|---|---|
+| API contract changes | Ripley + Hudson sync | Liz (scope) |
+| Database schema | Ripley | Liz (approval) |
+| UI/UX changes | Hudson | Ripley (API impact) |
+| Deployment/Docker | Vasquez | Liz (approval) |
+| Test coverage | Bishop | Ripley + Hudson (expectations) |
+| Architecture | Liz | All (consultation) |
+
+## Communication Norms
+- Ripley & Hudson: Sync on API contracts before implementation
+- All team members: Read decisions/inbox before starting work
+- Async-first: Document decisions in decisions/inbox before action
+- Escalations to Liz: Use for scope, architecture, or cross-team conflicts

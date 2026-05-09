@@ -140,8 +140,8 @@ async function uploadFromUrl() {
 
     try {
         uploadBtn.disabled = true;
-        uploadBtn.innerHTML = '<span class="material-symbols-rounded">hourglass_empty</span> Uploading...';
-        showToast('Uploading video URL to Reka...', 'info');
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">hourglass_empty</span> Processing...';
+        showToast('Processing video URL...', 'info');
 
         // Build request body with URL and optional video name
         const requestBody = { url: url };
@@ -162,9 +162,9 @@ async function uploadFromUrl() {
             return;
         }
 
-        showToast(`Video uploaded to Reka: ${data.video_name}`, 'success');
+        showToast(`Video ready for Q&A: ${data.filename}`, 'success');
 
-        // Reload video list (video will appear as Reka video)
+        // Reload video list (video will appear as URL video)
         loadAllVideos();
 
         // Clear inputs
@@ -175,7 +175,7 @@ async function uploadFromUrl() {
         showToast('Upload failed: ' + error.message, 'error');
     } finally {
         uploadBtn.disabled = false;
-        uploadBtn.innerHTML = '<span class="material-symbols-rounded">cloud_upload</span> Upload to Reka';
+        uploadBtn.innerHTML = '<span class="material-symbols-rounded">add_link</span> Add URL for Q&A';
     }
 }
 
@@ -199,56 +199,57 @@ async function loadAllVideos() {
 function displayUnifiedVideoList(videos) {
     videosList.innerHTML = videos.map(video => {
         const sourceIcons = {
-            'synced': { icon: 'sync', color: 'var(--ctp-mocha-green)', title: 'Synced (Reka + Local)' },
-            'reka_only': { icon: 'cloud', color: 'var(--ctp-mocha-blue)', title: 'Reka Only' },
-            'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' }
+            'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' },
+            'url': { icon: 'language', color: 'var(--ctp-mocha-lavender)', title: 'URL Video — Q&A Ready' }
         };
+
+        // Default can_select to true when the backend omits it — only disable when explicitly false
+        const canSelect = video.can_select !== false;
+        const videoSource = video.source || 'local_only';
         
-        const sourceInfo = sourceIcons[video.source];
+        const sourceInfo = sourceIcons[videoSource] || { icon: 'help', color: 'var(--ctp-mocha-overlay0)', title: 'Unknown Source' };
         const statusBadge = getStatusBadge(video);
+        const urlBadge = videoSource === 'url' ? `
+            <span class="badge badge-lavender" title="URL video is Q&A-ready. Frame extraction will download the video.">
+                <span class="material-symbols-rounded">language</span>
+                URL video — Q&A ready
+            </span>
+        ` : '';
         
         return `
-        <div class="unified-video-item ${!video.can_select ? 'disabled' : ''}" data-video-id="${video.id}">
+        <div class="unified-video-item ${!canSelect ? 'disabled' : ''}" data-video-id="${video.id}" data-video-source="${videoSource}">
             <div class="video-item-header">
-                <span class="sync-icon ${video.source}" title="${sourceInfo.title}">
+                <span class="sync-icon ${videoSource}" title="${sourceInfo.title}">
                     <span class="material-symbols-rounded" style="color: ${sourceInfo.color};">${sourceInfo.icon}</span>
                 </span>
                 <div class="video-name">${escapeHtml(video.name)}</div>
                 ${statusBadge}
+                ${urlBadge}
             </div>
             <div class="video-item-meta">
                 ${video.duration ? `<span>${formatDuration(video.duration)}</span>` : ''}
                 ${video.size ? `<span>${formatFileSize(video.size)}</span>` : ''}
             </div>
             <div class="video-item-actions">
-                ${video.can_select ? `
+                ${canSelect ? `
                     <button class="file-select-btn" onclick='selectVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})'>
                         <span class="material-symbols-rounded">play_circle</span>
                         Select
                     </button>
                 ` : `
-                    <button class="file-select-btn" disabled title="Video must be synced and indexed">
+                    <button class="file-select-btn" disabled title="Video not ready for processing">
                         <span class="material-symbols-rounded">play_circle</span>
                         Select
                     </button>
                 `}
-                ${video.can_download ? `
-                    <button class="file-action-btn" onclick='downloadVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Download to local">
-                        <span class="material-symbols-rounded">download</span>
-                    </button>
-                ` : ''}
-                ${video.can_refresh_status ? `
-                    <button class="file-action-btn" onclick="refreshStatus('${video.reka_video_id}')" title="Refresh indexing status">
-                        <span class="material-symbols-rounded">refresh</span>
+                ${(video.gemini_cache_status === 'expired' || video.gemini_cache_status === 'not_uploaded') ? `
+                    <button class="file-action-btn upload-gemini-btn" onclick='uploadToGemini(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Upload to Gemini cache">
+                        <span class="material-symbols-rounded">cloud_upload</span>
+                        Upload to Gemini
                     </button>
                 ` : ''}
                 ${video.can_delete_local ? `
                     <button class="file-delete-btn" onclick="deleteLocal('${escapeHtml(video.local_filename)}')" title="Delete local copy">
-                        <span class="material-symbols-rounded">delete</span>
-                    </button>
-                ` : ''}
-                ${video.can_delete_reka && !video.can_delete_local ? `
-                    <button class="file-delete-btn" onclick="deleteReka('${video.reka_video_id}')" title="Delete from Reka">
                         <span class="material-symbols-rounded">delete</span>
                     </button>
                 ` : ''}
@@ -259,21 +260,25 @@ function displayUnifiedVideoList(videos) {
 }
 
 function getStatusBadge(video) {
-    if (!video.reka_indexing_status) return '';
+    if (!video.gemini_cache_status) return '';
     
     const badges = {
-        'indexed': { class: 'badge-green', text: 'Indexed', icon: 'check_circle' },
-        'indexing': { class: 'badge-yellow', text: 'Indexing...', icon: 'sync' },
-        'failed': { class: 'badge-red', text: 'Failed', icon: 'error' },
-        'unknown': { class: 'badge-gray', text: 'Unknown', icon: 'help' }
+        'fresh': { class: 'badge-green', text: 'Ready', icon: 'check_circle' },
+        'expired': { class: 'badge-red', text: 'Expired', icon: 'schedule' },
+        'not_uploaded': { class: 'badge-gray', text: 'Not uploaded', icon: 'cloud_upload' }
     };
     
-    const badge = badges[video.reka_indexing_status] || badges.unknown;
+    const badge = badges[video.gemini_cache_status] || badges['not_uploaded'];
+    let badgeText = badge.text;
+    
+    if (video.gemini_cache_status === 'fresh' && video.expires_in_hours) {
+        badgeText = `Ready (${video.expires_in_hours}h)`;
+    }
     
     return `
         <span class="badge ${badge.class}">
             <span class="material-symbols-rounded">${badge.icon}</span>
-            ${badge.text}
+            ${badgeText}
         </span>
     `;
 }
@@ -320,58 +325,53 @@ async function selectVideo(video) {
     chatSection.style.display = 'block';
     paramsSection.style.display = 'block';
     resultsSection.style.display = 'none';
-    chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
+    
+    // Handle params section differently for URL vs local videos
+    if (video.source === 'url') {
+        // Hide the normal params and show URL-specific message
+        const timestampParams = document.getElementById('timestamp-params');
+        if (timestampParams) {
+            timestampParams.style.display = 'none';
+        }
+        // Update extract button for URL videos
+        const originalExtractBtn = document.getElementById('extract-btn');
+        if (originalExtractBtn) {
+            originalExtractBtn.disabled = false;
+            originalExtractBtn.innerHTML = `
+                <span class="material-symbols-rounded">download</span>
+                Extract Frames (downloads video)
+            `;
+            originalExtractBtn.title = 'Download the video via yt-dlp and extract keyframes';
+        }
+    } else {
+        // Show normal params for local videos
+        const timestampParams = document.getElementById('timestamp-params');
+        if (timestampParams) {
+            timestampParams.style.display = 'grid';
+        }
+        // Reset extract button
+        const originalExtractBtn = document.getElementById('extract-btn');
+        if (originalExtractBtn) {
+            originalExtractBtn.disabled = false;
+            originalExtractBtn.innerHTML = 'Extract Frames';
+            originalExtractBtn.title = '';
+        }
+    }
+    
+    // Add Q&A-only messaging for URL videos
+    if (video.source === 'url') {
+        chatMessagesDiv.innerHTML = `
+            <div class="chat-welcome">
+                <h4>💡 This video is Q&A-ready</h4>
+                <p>Frame extraction will download the video when triggered. Ask any questions about this video below.</p>
+            </div>
+        `;
+    } else {
+        chatMessagesDiv.innerHTML = '<div class="chat-welcome">Ask me anything about this video!</div>';
+    }
+    
     chatInput.value = DEFAULT_QUESTION;
     chatInput.focus();
-}
-
-async function downloadVideo(video) {
-    showToast('Downloading video...', 'info');
-    
-    try {
-        const response = await fetch('/videos/download', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                reka_video_id: video.reka_video_id,
-                video_url: video.reka_url,
-                video_name: video.name,
-                reka_indexing_status: video.reka_indexing_status
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            showToast(data.error, 'error');
-            return;
-        }
-        
-        showToast('Video downloaded successfully!', 'success');
-        loadAllVideos();
-    } catch (error) {
-        showToast('Download failed: ' + error.message, 'error');
-    }
-}
-
-async function refreshStatus(rekaVideoId) {
-    try {
-        const response = await fetch(`/reka/refresh-status/${rekaVideoId}`, {
-            method: 'POST'
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-            showToast(data.error, 'error');
-            return;
-        }
-        
-        showToast(`Status updated: ${data.indexing_status}`, 'success');
-        loadAllVideos();
-    } catch (error) {
-        showToast('Failed to refresh status', 'error');
-    }
 }
 
 async function deleteLocal(filename) {
@@ -406,33 +406,40 @@ async function deleteLocal(filename) {
     }
 }
 
-async function deleteReka(rekaVideoId) {
-    if (!confirm('Delete this video from Reka?')) return;
+async function uploadToGemini(video) {
+    const button = event.target.tagName === 'BUTTON' ? event.target : event.target.closest('button');
+    if (!button || !button.classList.contains('upload-gemini-btn')) {
+        showToast('Button element not found', 'error');
+        return;
+    }
+    
+    const originalHtml = button.innerHTML;
     
     try {
-        const response = await fetch(`/reka/delete/${rekaVideoId}`, {
-            method: 'DELETE'
+        button.disabled = true;
+        button.innerHTML = '<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span> Uploading...';
+        
+        const response = await fetch('/videos/upload-to-gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ filename: video.filename })
         });
         
         const data = await response.json();
         
         if (data.error) {
-            showToast(data.error, 'error');
+            showToast('Upload failed: ' + data.error, 'error');
+            button.disabled = false;
+            button.innerHTML = originalHtml;
             return;
         }
         
-        showToast('Reka video deleted', 'success');
+        showToast('Video uploaded to Gemini successfully!', 'success');
         loadAllVideos();
-        
-        // Clear selection if deleted
-        if (currentVideo && currentVideo.reka_video_id === rekaVideoId) {
-            currentVideo = null;
-            videoInfo.classList.add('hidden');
-            chatSection.style.display = 'none';
-            paramsSection.style.display = 'none';
-        }
     } catch (error) {
-        showToast('Failed to delete video', 'error');
+        showToast('Upload to Gemini failed: ' + error.message, 'error');
+        button.disabled = false;
+        button.innerHTML = originalHtml;
     }
 }
 
@@ -470,15 +477,8 @@ async function uploadVideo(file) {
             return;
         }
 
-        // Show success and auto-upload info
-        if (data.reka_synced) {
-            showToast('Video uploaded and synced to Reka!', 'success');
-        } else {
-            showToast('Video uploaded successfully!', 'success');
-            if (data.reka_upload_error) {
-                showToast('Reka sync failed: ' + data.reka_upload_error, 'warning');
-            }
-        }
+        // Show success
+        showToast('Video uploaded successfully!', 'success');
 
         // Reload video list
         loadAllVideos();
@@ -492,9 +492,62 @@ async function uploadVideo(file) {
     }
 }
 
+// URL video extraction — downloads via yt-dlp then extracts keyframes
+async function handleUrlExtraction() {
+    const filename = currentVideo.filename;
+    showToast('Downloading video via yt-dlp… this may take a few minutes', 'info');
+
+    extractBtn.disabled = true;
+    resultsSection.style.display = 'block';
+    progress.classList.remove('hidden');
+    resultsContent.classList.add('hidden');
+
+    // Pass AI-suggested timestamps if available so extraction uses them
+    const timestampsInput = document.getElementById('timestamps').value.trim();
+    const body = { filename };
+    if (timestampsInput) {
+        body.timestamps = timestampsInput;
+        body.frames_per_timestamp = parseInt(document.getElementById('frames-per-timestamp').value) || 1;
+    }
+
+    try {
+        const response = await fetch('/videos/extract-frames-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        showToast('Frames extracted successfully!', 'success');
+        displayResults(data);
+        // Refresh library — URL video now appears as a local file
+        loadAllVideos();
+    } catch (error) {
+        showToast('Extraction failed: ' + error.message, 'error');
+    } finally {
+        extractBtn.disabled = false;
+        progress.classList.add('hidden');
+    }
+}
+
 // Extraction Handler
 async function handleExtraction() {
-    if (!currentVideo || !currentVideo.local_filepath) {
+    if (!currentVideo) {
+        showToast('Please select a video first', 'error');
+        return;
+    }
+    
+    if (currentVideo.source === 'url') {
+        await handleUrlExtraction();
+        return;
+    }
+    
+    if (!currentVideo.filepath) {
         showToast('Please select a video with local copy first', 'error');
         return;
     }
@@ -522,7 +575,7 @@ async function handleExtraction() {
     }
     
     const params = {
-        filepath: currentVideo.local_filepath,
+        filepath: currentVideo.filepath,
         mode: 'timestamp',
         timestamps: timestamps,
         frames_per_timestamp: parseInt(document.getElementById('frames-per-timestamp').value)
@@ -703,8 +756,8 @@ function showError(message) {
 
 // Chat Functions
 async function sendChatMessage() {
-    if (!currentVideo || !currentVideo.reka_video_id) {
-        showToast('Please select a video with Reka sync first', 'error');
+    if (!currentVideo || !currentVideo.filename) {
+        showToast('Please select a local video first', 'error');
         return;
     }
     
@@ -724,15 +777,14 @@ async function sendChatMessage() {
     chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
     
     try {
-        const response = await fetchWithTimeout('/reka/ask', {
+        const response = await fetchWithTimeout('/gemini/ask', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                video_id: currentVideo.reka_video_id,
-                question: question,
-                messages: chatMessages
+                filename: currentVideo.filename,
+                messages: [...chatMessages, { role: 'user', content: question }]
             })
         }, 120000); // 2 minutes timeout
         
@@ -747,23 +799,7 @@ async function sendChatMessage() {
         }
         
         // Extract answer from response
-        let answer = 'No response received';
-        
-        if (data.data?.chat_response) {
-            try {
-                const chatResponse = JSON.parse(data.data.chat_response);
-                if (chatResponse.sections && chatResponse.sections.length > 0) {
-                    answer = chatResponse.sections
-                        .filter(s => s.section_type === 'markdown')
-                        .map(s => s.markdown)
-                        .join('\n\n');
-                }
-            } catch (e) {
-                answer = data.data.chat_response;
-            }
-        } else if (data.data?.answer) {
-            answer = data.data.answer;
-        }
+        let answer = data.answer || 'No response received';
         
         // Auto-extract timestamps from AI response
         const timestampMatch = answer.match(/TIMESTAMPS:\s*([\d.,\s]+)/i);

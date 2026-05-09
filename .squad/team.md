@@ -1,28 +1,24 @@
-# Squad Team
-
-> video2blog
-
-## Coordinator
-
-| Name | Role | Notes |
-|------|------|-------|
-| Squad | Coordinator | Routes work, enforces handoffs and reviewer gates. |
+# video2blog Team
 
 ## Members
 
 | Name | Role | Charter | Status |
 |------|------|---------|--------|
-| Hicks | Lead/Architect | `.squad/agents/hicks/charter.md` | active |
+| Liz | Lead/Architect | `.squad/agents/liz/charter.md` | active |
 | Vasquez | DevOps Engineer | `.squad/agents/vasquez/charter.md` | active |
 | Bishop | Tester/QA | `.squad/agents/bishop/charter.md` | active |
-| Scribe | Session Logger | `.squad/agents/scribe/charter.md` | active |
-| Ralph | Work Monitor | — | active |
+| Ripley | Backend Developer | `.squad/agents/ripley/charter.md` | active |
+| Hudson | Frontend Developer | `.squad/agents/hudson/charter.md` | active |
 
-## Project Context
+## Governance
+- Liz: Technical decisions, scope, architecture
+- Vasquez: Infrastructure, Docker, deployments
+- Bishop: Test coverage, test data, QA gates
+- Ripley: Python/Flask implementation, Gemini API, database
+- Hudson: UI/templates, CSS, JavaScript
 
-- **Project:** video2blog
-- **Stack:** Python 3.11, Flask, OpenCV, numpy
-- **Created:** 2026-03-09
-- **User:** fboucher
-- **Universe:** Alien
-- **Current focus:** Reduce Docker image size from ~1.5 GB
+## Slack Channels
+- #video2blog-general
+- #video2blog-backend (Ripley, Liz)
+- #video2blog-frontend (Hudson, Liz)
+- #video2blog-devops (Vasquez, Liz)

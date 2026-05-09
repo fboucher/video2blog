@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-ARG APP_VERSION=0.5.1-preview
+ARG APP_VERSION=0.7.0
 ENV APP_VERSION=${APP_VERSION}
 
 # Install system dependencies for OpenCV headless (minimal set)
@@ -22,7 +22,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY keyframe_extractor.py web_app.py reka_service.py db_service.py ./
+COPY keyframe_extractor.py web_app.py gemini_service.py db_service.py ./
 COPY templates/ ./templates/
 COPY static/ ./static/
 

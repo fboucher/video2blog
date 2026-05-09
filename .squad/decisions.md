@@ -1,143 +1,315 @@
-# Squad Decisions
+# Team Decisions Log
 
-## Active Decisions
+## 2026-05-07: Team Expanded for Gemini Migration
 
-### Docker Image Optimization (2026-03-09)
+**Date:** 2026-05-07  
+**By:** Liz (on behalf of fboucher)  
+**Status:** Active
 
-**Owner:** Vasquez (DevOps)  
-**Requested by:** fboucher  
-**Status:** APPROVED & IMPLEMENTED
+### What
+Hired two new team members to handle Gemini migration (issues #22–#28):
+- **Ripley** — Backend Developer (Python, Flask, Gemini API, SQLite)
+- **Hudson** — Frontend Developer (HTML/Jinja2, CSS, JavaScript, UI)
 
-#### Summary
+### Why
+The existing team (Liz, Vasquez, Bishop) was built for Docker optimization and lacks backend implementation capacity. Gemini migration requires:
+- Deep Python/Flask/REST API expertise (Ripley)
+- Template/UI/AJAX expertise (Hudson)
+- Vasquez continues to own Dockerfile/infra changes (#28)
 
-Optimized video2blog Docker image from ~1.5 GB to **794 MB** (47% reduction, ~700 MB savings).
+### Scope
+- Ripley owns issues #22–28 (backend, Python, Gemini API, database, yt-dlp)
+- Hudson owns #23, #26 (frontend, UI, templates, JavaScript)
+- Vasquez owns Docker changes in #28
+- Bishop provides test coverage expectations for both
 
-#### Changes Implemented
+### Coordination Model
+1. Ripley & Hudson sync on API response contracts before implementation
+2. All decisions documented in decisions/inbox before action
+3. Liz approves architecture/scope changes
+4. Bishop sets test coverage gates
 
-1. **opencv-python → opencv-python-headless** (requirements.txt)
-   - Rationale: App is headless Flask server; cv2 only used for VideoCapture, frame reading, property queries
-   - Impact: Removes Qt, X11 GUI libraries (~400-600 MB savings)
-
-2. **Removed Display Libraries** (Dockerfile)
-   - Removed: `libsm6`, `libxext6`, `libxrender-dev`
-   - Retained: `libgl1`, `libglib2.0-0`, `libgomp1` (essential for OpenCV)
-   - Impact: ~100-150 MB savings
-
-3. **.dockerignore** (new file)
-   - Excludes development artifacts (`.git/`, `.squad/`, `node_modules/`, `__pycache__/`, `*.pyc`, assets, docs)
-   - Prevents unnecessary context transfer, speeds builds
-
-4. **Dockerfile Layer Optimizations**
-   - Added `--no-install-recommends` to apt-get
-   - Combined RUN operations (mkdir/chmod)
-   - Enhanced cleanup (apt cache, /tmp/*, /var/tmp/*)
-
-#### Results
-
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Image Size | ~1.5 GB | 794 MB | -706 MB (-47%) |
-| Apt Packages | 6 | 3 | -50% |
-| OpenCV | GUI variant | Headless | Optimal for server |
-
-#### Verification
-
-- Docker build successful
-- Image size verified: 794 MB
-- Application functionality confirmed (headless OpenCV intact)
-
-#### Recommendation
-
-Commit and deploy. Improvements:
-- Faster Docker pulls
-- Lower storage requirements
-- Improved container startup time
-- Better CI/CD pipeline efficiency
+### Implementation Notes
+- Onboarding files created: `.squad/agents/ripley/{charter,history}.md`, `.squad/agents/hudson/{charter,history}.md`
+- Team registry updated in `.squad/casting/registry.json`
+- Routing document updated: `.squad/routing.md`
+- Team manifest updated: `.squad/team.md`
 
 ---
 
-### User Directive: Folder Restructuring (2026-03-09)
+## 2026-05-07: Renamed Hicks → Liz
 
-**Source:** fboucher (via Copilot)  
-**Scope:** Optional refactoring  
-
-Only restructure code directories (e.g., moving to `src/`) if it genuinely and meaningfully reduces Docker image size. Prefer not to change folder structure otherwise.
-
-### Docker Image Optimization Strategy & Analysis
-
-**Date:** 2026-03-09  
-**Lead Analysis:** Hicks (Lead/Architect)  
-**Implementation:** Vasquez (DevOps)  
-**Verification:** Bishop (Tester/QA)
-
-#### Strategy Overview (from Hicks)
-
-Hicks performed deep Docker image analysis and produced a comprehensive optimization strategy with 6 priority levels (P1-P6). Key findings:
-
-**Root Cause Analysis:**
-- Image size: ~1.5 GB
-- Base: `python:3.11-slim` (~200MB)
-- `opencv-python` wheel: 59MB compressed → ~180MB+ installed (bundles Qt5/GUI libraries)
-- 6 apt packages installed, 4 of which are X11/GUI-only dependencies
-- Build context: 332MB of `node_modules/` unnecessarily transferred
-- No `.dockerignore` in place
-
-**Prioritized Optimization Strategy:**
-
-| Priority | Change | Impact | Risk | Complexity |
-|----------|--------|--------|------|------------|
-| **P1** | Switch `opencv-python` → `opencv-python-headless` | -50-80MB wheel savings, ~50-80MB more from removed Qt/GUI libs | LOW | 1-line change |
-| **P2** | Remove X11/GUI apt packages (libgl1, libsm6, libxext6, libxrender-dev) | -50-150MB | LOW (with P1) | 1-line change |
-| **P3** | Add `.dockerignore` | 0MB image, but much faster builds | NONE | new file |
-| **P4** | Combine RUN layers (mkdir/chmod) | <1MB | NONE | minor edit |
-| **P5** | Multi-stage build | ~5MB | LOW | not recommended (complexity overhead) |
-| **P6** | Folder restructuring to src/ | 0MB | N/A | skip |
-
-**Hicks Recommendation:** P1 + P2 + P3 together. Expected total reduction: ~100-250MB plus massively faster build context transfer.
-
-#### Implementation Confirmation (from Vasquez)
-
-Vasquez successfully implemented P1, P2, P3, and P4:
-1. Changed `requirements.txt`: `opencv-python==4.8.1.78` → `opencv-python-headless==4.8.1.78`
-2. Edited `Dockerfile` apt-get line: Kept only `libgl1`, `libglib2.0-0`, `libgomp1`
-3. Created `.dockerignore` with appropriate exclusions
-4. Merged RUN commands (mkdir+chmod) for layer optimization
-
-**Note on libgl1 divergence:** Hicks initially recommended removing libgl1, but Vasquez correctly retained it. OpenCV headless variant still requires libgl1 for OpenGL operations. Bishop's verification confirmed this design choice works correctly.
-
-#### Verification Results (from Bishop)
-
-Bishop conducted full build verification with 6 test categories:
-- ✅ Static Dockerfile Analysis: Apt packages verified as minimal and sufficient
-- ✅ Code Review for GUI Calls: Scanned entire codebase (keyframe_extractor.py, web_app.py) — zero GUI functions found
-- ✅ Docker Build Test: Build completed successfully, all 9 stages executed cleanly
-- ✅ Import Verification: `cv2.4.8.1`, numpy, flask all import correctly
-- ✅ Image Size: **794 MB confirmed** (47% reduction from ~1.5 GB)
-- ✅ Flask App Startup: Application loads without errors
-
-**Regression Status:** No regressions detected. All functionality intact after switching to opencv-python-headless.
-
-#### Final Results
-
-| Metric | Before | After | Change |
-|--------|--------|-------|--------|
-| Image Size | ~1.5 GB | 794 MB | -706 MB (-47%) |
-| Apt Packages | 6 | 3 | -50% |
-| Build Context | ~340MB+ | <1MB | Optimized (via .dockerignore) |
-| OpenCV Variant | GUI | Headless | Optimal for headless server |
-
-#### Deployment Recommendation
-
-**STATUS: APPROVED & READY FOR DEPLOYMENT**
-- All verification checks passed
-- No regressions detected
-- Significant size and build speed improvements achieved
-- Branch: `docker-optimize`, Commit: c73533b
+**By:** fboucher (via Copilot)  
+**What:** Lead/Architect renamed from Hicks to Liz. All squad files updated.  
+**Why:** User preference.
 
 ---
 
-## Governance
+## 2026-05-07: Decision — PR #29 Review — Gemini Service Foundation
 
-- All meaningful changes require team consensus
-- Document architectural decisions here
-- Keep history focused on work, decisions focused on direction
+**Date:** 2026-05-07  
+**By:** Liz (Lead/Architect)  
+**Status:** APPROVED
+
+### Context
+
+PR #29 implements Issue #22 — the Gemini service + DB schema foundation that all other issues (#23–#28) depend on.
+
+### Verdict
+
+**APPROVED** — All acceptance criteria met. Architecture is sound for a Flask service layer.
+
+### Architectural Decisions Established
+
+1. **Stateless client pattern**: `_client()` reconfigures `genai` on every call. No singleton. Safe for multi-request Flask processes, avoids stale API key issues.
+2. **No DB migration**: Schema uses `CREATE TABLE IF NOT EXISTS`. Existing Reka databases are not migrated — a fresh DB is expected. This is acceptable since we're replacing the entire system.
+3. **Blocking upload**: `upload_video()` polls for up to 300s. Callers (Issue #23) MUST wrap this in a background task for acceptable UX.
+4. **Dual file_ref contract**: `generate_blog()` and `ask()` accept both Gemini file URIs and public URLs. This enables #23 (local upload) and #26 (URL-based) to share the same API.
+
+### What #23–#28 Implementers Must Know
+
+- Always gate on `is_configured()` before API calls
+- `upload_video()` is long-running — use background task + status polling
+- After upload, persist via `db_service.update_gemini_upload(filename, uri, iso_timestamp)`
+- Check `get_gemini_file_info(filename)` before re-uploading (48hr cache window)
+- History format: `[{"role": "user"|"model", "parts": [str]}]`
+
+### Follow-up Items (non-blocking)
+
+- Pin `google-generativeai` version in requirements.txt
+- Move inline imports to module level
+- Extract `_configure()` helper for DRY
+- Extract video_part resolution helper in generate_blog
+
+---
+
+## 2026-05-07: API Contract — Issue #23 Gemini Cache Status
+
+**Date:** 2026-05-07  
+**By:** Ripley (Backend)  
+**For:** Hudson (Frontend UI implementation)  
+**Status:** IMPLEMENTED
+
+### What
+Documented `/videos/list`, `POST /upload`, and `POST /videos/upload-to-gemini` response contracts for cache-aware UI badges and re-upload flow.
+
+### Key Contracts
+
+**`GET /videos/list`** returns all videos with cache status:
+- `gemini_cache_status`: `"fresh"` | `"expired"` | `"not_uploaded"`
+- `expires_in_hours`: present only when `"fresh"`
+- `gemini_uri`: file URI or `null`
+
+**`POST /upload`** (existing, now returns Gemini fields):
+- Returns `gemini_uri`, `gemini_cache_status`, optional `gemini_upload_error`
+
+**`POST /videos/upload-to-gemini`** (new re-upload endpoint):
+- Request: `{ "filename": "..." }`
+- Response: `{ "status": "ok", "uri": "files/...", "gemini_cache_status": "fresh" }`
+- Error codes: 400 (missing field), 404 (file not found), 503 (key not configured), 500 (API error)
+
+### UI Badges (Hudson)
+- **Fresh (green):** "✓ Cached (41h remaining)" — re-upload not needed
+- **Expired (amber):** "⚠ Cache Expired" — show "Re-upload" button
+- **Not Uploaded (grey):** "○ Local Only" — show "Upload to Gemini" button
+
+### Removed Routes
+- ~~`POST /videos/download`~~ (Reka CDN)
+- ~~`POST /reka/refresh-status/<video_id>`~~ (Reka polling)
+
+---
+
+## 2026-05-07: Decision — PR #32 Review — Blog Generation with Gemini Timestamps
+
+**Date:** 2026-05-07  
+**By:** Liz (Lead/Architect)  
+**PR:** #32 (closes #25)  
+**Author:** Ripley  
+**Status:** APPROVED
+
+### Verdict
+
+**APPROVED** — All five acceptance criteria met. Architecture is clean and follows established patterns.
+
+### Acceptance Criteria Assessment
+
+| Criterion | Status |
+|---|---|
+| Blog generation calls Gemini and returns a blog draft | ✅ `gemini_service.generate_blog()` returns `{draft, timestamps}` |
+| Gemini-suggested timestamps used for frame extraction | ✅ Timestamps passed to `extract_frames_at_timestamps()` |
+| Scene detection fallback when timestamps empty | ✅ `extract_keyframes()` called when `timestamps` is falsy |
+| Generated frames appear in output alongside blog draft | ✅ Response includes `frames` list + `blog` field |
+| Old Reka blog generation route/logic removed | ✅ `/reka/ask` route replaced by `/gemini/generate-blog` |
+
+### Review Notes
+
+1. **Prompt design is solid.** Requesting raw JSON (no code fences) with a code-fence stripping fallback is a pragmatic two-layer defense against Gemini's formatting variability.
+2. **`_resolve_gemini_uri()` reused correctly** — same helper used by the Q&A route at line 1106. No duplication.
+3. **`_gemini_cache_status()` extracted cleanly** — single definition at line 98, reused in `_resolve_gemini_uri()`.
+4. **Fallback path is clearly conditional.** `if timestamps:` → Gemini timestamps; `else:` → scene detection.
+5. **Return shape** `{blog, frames, source, gemini_cache_status}` gives the UI all it needs.
+6. **`/upload-from-url` rewrite** correctly replaces Reka with Gemini URL refs.
+
+### Minor Observations (Non-blocking)
+
+1. Response key mismatch: `generate_blog()` returns `draft`, route serializes as `blog`. Works fine for UI.
+2. Reka remnants in other routes — scoped to #28.
+3. `reka_service` import still present — scoped to #28.
+4. Test covers fallback path only — Bishop can add happy-path test in #25's test pass.
+
+### Implications for Downstream Issues
+
+- **#27:** Can reuse `_resolve_gemini_uri()` and timestamp-vs-fallback pattern.
+- **#28:** Must remove `import reka_service` and all remaining Reka routes/references.
+
+---
+
+## 2026-05-07: Decision — `GET /videos/list` Must Include URL-Based Videos
+
+**Date:** 2026-05-08  
+**By:** Ripley (Backend)  
+**Related:** Issue #21 validation  
+**Status:** IMPLEMENTED
+
+### What
+
+`GET /videos/list` now returns both local files (from filesystem) and URL-based videos (from DB). The two sources are merged into a single `videos` array.
+
+### Why
+
+URL videos have no local file — they are tracked only in the `video_sync` table with `source_url IS NOT NULL` and a pseudo-filename like `url-<hash>`. Filesystem-only scanning silently dropped them from the library, breaking the URL-as-input flow.
+
+### Shape of URL Video Entries
+
+```json
+{
+  "id": 42,
+  "name": "My YouTube Video",
+  "source": "url",
+  "local_filename": "url-a1b2c3d4",
+  "gemini_cache_status": "fresh",
+  "can_select": true,
+  "can_delete_local": false,
+  "duration": 0,
+  "size": 0,
+  "fps": 0
+}
+```
+
+- `gemini_cache_status` is hardcoded `"fresh"` — Gemini handles URLs natively, no TTL.
+- `can_delete_local` is `false` — there is no local file to delete.
+- `can_select` is `true` — URL videos are immediately usable for Q&A.
+
+### Impact
+
+- Frontend `loadAllVideos` now sees URL videos in the library after submission.
+- No change to DB schema, DB service, or upload-from-url route.
+- Local video behavior unchanged.
+
+---
+
+## 2026-05-07: Decision — URL Video UI Messaging — Issue #26
+
+**Date:** 2026-05-07  
+**By:** Hudson (Frontend)  
+**Status:** IMPLEMENTED
+
+### What
+
+Implemented Option B (separate messaging + disabled button stub) to communicate URL video capabilities and frame-extraction deferral to users.
+
+### Details
+
+1. **URL Video Badge** — "🌐 URL video — Q&A ready" (lavender, `#b4befe`) in video library list.
+2. **Q&A-Only Messaging** — Info box shown in chat welcome section when URL video is selected.
+3. **Frame Extraction CTA** — Disabled button with toast on click; issue #27 will activate it.
+
+### Why
+
+Tooltip-only (Option A) is not discoverable. Badge-only (Option C) is insufficient. Option B gives users three progressive cues: badge → info box → disabled CTA.
+
+### Implementation
+
+- `static/js/app.js` — Conditional rendering in `displayUnifiedVideoList()`, `selectVideo()`, `handleExtraction()`
+- `static/css/style.css` — Badge-lavender + message box styling
+
+### Follow-up
+
+Issue #27 will replace the disabled button stub with actual yt-dlp extraction UI.
+
+---
+
+## 2026-05-07: Frontend Audit — Stale Reka References + Defensive Defaults
+
+**Date:** 2025-07-10  
+**By:** Hudson (Frontend)  
+**Status:** IMPLEMENTED
+
+### What
+
+Audited `static/js/app.js` and `templates/index.html` for stale Reka references and defensively handled absent API fields.
+
+### Findings
+
+1. **No stale Reka references** — frontend was already clean (no `/reka/*` routes, `refresh-status`, or `indexing_status`).
+2. **`can_select` bug fixed** — when backend omits `can_select`, it was evaluated as `undefined` (falsy), disabling all videos. Fixed with `const canSelect = video.can_select !== false;` — defaults to `true`.
+3. **`source` default added** — `const videoSource = video.source || 'local_only';` prevents `class="sync-icon undefined"` CSS class names.
+4. **URL upload flow verified** — no frontend changes required; `loadAllVideos()` + `displayUnifiedVideoList()` already handle `source === 'url'` correctly once backend returns the field.
+
+### Why
+
+Defensive defaults ensure videos remain usable even if the backend temporarily omits explicit fields. Both defaults become no-ops once Ripley's backend fix adds explicit field values.
+
+
+## 2026-05-09: Decision — SDK Migration from google-generativeai to google-genai
+
+**Date:** 2026-05-09  
+**By:** Ripley (Backend)  
+**Status:** Implemented
+
+### Context
+
+Google ended all support for the `google-generativeai` package. Container was logging `FutureWarning: All support for the google.generativeai package has ended. Please switch to the google.genai package.` on every startup.
+
+### Decision
+
+Migrate `gemini_service.py` to `google-genai` (new unified SDK). Key changes:
+
+- `_client()` now returns `genai.Client(api_key=key)` — single entry point for all API calls
+- Chat: `client.chats.create(model=name, history=[...])` replaces `model.start_chat(history=[...])`
+- Files: `client.files.upload/get/delete` replaces module-level `genai.upload_file/get_file/delete_file`
+- `requirements.txt`: `google-generativeai` → `google-genai>=1.0.0` (latest: 2.0.1)
+
+### Consequences
+
+- **All public function signatures preserved** — no changes needed in `web_app.py` or other callers
+- **Tests updated** to patch `gemini_service._client` directly (more robust, SDK-agnostic strategy)
+- `google-genai` is actively maintained and required for continued Gemini 2.x access
+- Conversation history format (list of `{role, parts}` dicts) unchanged
+
+---
+
+## 2026-05-09: Database Fix — init_db() Migration Ordering
+
+**Date:** 2026-05-09  
+**By:** Ripley (Backend)  
+**Status:** Implemented
+
+### What
+
+Fixed `init_db()` in `db_service.py` to create `idx_source_url` index AFTER `ALTER TABLE ADD COLUMN source_url`, not before. Resolves migration crash on new DB initialization.
+
+### Why
+
+SQLite does not allow indexing non-existent columns. The migration order was:
+1. ❌ CREATE INDEX idx_source_url ON video_sync(source_url) — fails, column doesn't exist yet
+2. ALTER TABLE ADD COLUMN source_url
+
+Corrected to:
+1. ✅ ALTER TABLE ADD COLUMN source_url
+2. CREATE INDEX idx_source_url ON video_sync(source_url)
+
+### Impact
+
+- Fresh DB initialization now succeeds
+- Test coverage: 14/14 passing
