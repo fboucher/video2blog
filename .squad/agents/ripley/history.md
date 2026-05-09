@@ -277,3 +277,56 @@ restore_draft_version(draft_id: int, version_id: int) -> None  # raises ValueErr
 - `list_draft_versions()` orders by `id DESC` (not `created_at DESC`) — SQLite timestamps have 1-second resolution, which causes ties on fast consecutive inserts.
 - `restore_draft_version()` raises `ValueError` (not silent) when `version_id` doesn't belong to `draft_id`. Protects against cross-draft corruption.
 - Tests use same `mem_db` fixture pattern as `test_db_service.py` (patch `db_service.get_db` + `os.makedirs`, call `init_db()`).
+
+---
+
+## Issue #15 — Skills Discovery Service + Skill Buttons (2025-05-09)
+
+**Branch:** `squad/15-skills-service` → PR #41 → target `feat/issue-12-ai-editing`
+
+### What was built
+- **`skills_service.py`** — core module for skill discovery:
+  - `list_skills(skills_folder=None)` scans `SKILLS_FOLDER` env var (default `./skills`)
+  - Parses YAML front matter (`name`, `description`) from `SKILL.md` files
+  - Skips malformed files without crashing (logs warnings)
+  - `get_skill_prompt(skill_name, skills_folder=None)` returns prompt body with front matter stripped
+  - Raises `FileNotFoundError` for missing skills, `ValueError` for malformed front matter
+  
+- **Bundled skills:**
+  - `skills/edit-video-blog/SKILL.md` — refine video-to-blog drafts for clarity, flow, SEO
+  - `skills/text-editor/SKILL.md` — general-purpose copy editing and proofreading
+  
+- **API routes** (extended `editing_routes.py`):
+  - `GET /editing/skills` — returns JSON list `[{name, description}, ...]`
+  - `GET /editing/skill/<name>` — returns `{prompt: "..."}` or 404
+  
+- **Editor UI** (`templates/editor.html`):
+  - Right pane changed from placeholder to skill buttons container
+  - Fetches `/editing/skills` on page load, renders one button per skill
+  - Clicking a skill shows toast (AI wiring deferred to #16)
+  - CSS styles for skill buttons with hover effects
+  
+- **Infrastructure:**
+  - `docker-compose.yml` — added `./skills:/app/skills` volume mount
+  - `.env.example` — documented `SKILLS_FOLDER` configuration
+  - Tests: `tests/test_skills_service.py` (9 tests) + integration tests in `test_editing_routes.py`
+
+### Implementation details
+- Simple front matter parser using regex (no YAML library dependency)
+- Parsing pattern: `^---\n(.*?\n)---\n(.*)$` with manual key:value extraction
+- Skills folder structure: `<skills_folder>/<skill-name>/SKILL.md`
+- Malformed files (missing name/description, no front matter, etc.) are skipped with warnings
+
+### Test coverage
+- Valid/multiple skills, empty folder, missing front matter, missing required fields
+- Ignores non-directory entries, handles nonexistent folder
+- `get_skill_prompt()` returns body, raises errors for missing/malformed skills
+- Integration tests for API routes (200, 404 cases)
+- Fixed pre-existing test syntax error in `test_gemini_service.py` (unrelated to #15)
+
+### Patterns/gotchas
+- Skills are discovered dynamically — no static registration
+- `skills_folder` param on all functions enables testing with tempdir
+- Front matter is simple key:value pairs (not full YAML objects/arrays)
+- UI fetches skills on page load (no caching, no hot reload)
+
