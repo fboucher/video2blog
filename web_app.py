@@ -224,7 +224,7 @@ def list_all_videos():
             'size': 0,
             'fps': 0,
             'can_select': True,
-            'can_delete_local': False,
+            'can_delete_local': True,
             'modified': 0,
         }
         videos.append(entry)
@@ -319,17 +319,20 @@ def delete_file():
     
     filename = data['filename']
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    if not os.path.exists(filepath):
-        return jsonify({'error': 'File not found'}), 404
-    
+
     try:
-        # Delete the file
+        # URL-based videos have no local file — just remove the DB record
+        if filename.startswith('url-'):
+            db_service.delete_sync_by_filename(filename)
+            return jsonify({'success': True, 'message': f'Deleted {filename}'})
+
+        if not os.path.exists(filepath):
+            return jsonify({'error': 'File not found'}), 404
+
+        # Delete the local file then the DB record
         os.remove(filepath)
-        
-        # Clean up database sync record if exists
         db_service.delete_sync_by_filename(filename)
-        
+
         return jsonify({'success': True, 'message': f'Deleted {filename}'})
     except Exception as e:
         return jsonify({'error': f'Failed to delete file: {str(e)}'}), 500
