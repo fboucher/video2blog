@@ -109,6 +109,31 @@
 
         .save-btn .material-symbols-rounded { font-size: 17px; }
 
+        .export-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            background: var(--ctp-mocha-blue);
+            color: var(--ctp-mocha-crust);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .export-btn:hover {
+            background: var(--ctp-mocha-lavender);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(137, 180, 250, 0.35);
+        }
+
+        .export-btn:active { transform: translateY(0); }
+
+        .export-btn .material-symbols-rounded { font-size: 17px; }
+
         .save-indicator {
             font-size: 0.8rem;
             color: var(--ctp-mocha-green);
@@ -319,6 +344,16 @@
             Saved
         </div>
 
+        <button class="export-btn" id="download-btn" onclick="downloadMarkdown()">
+            <span class="material-symbols-rounded">download</span>
+            Download MD
+        </button>
+
+        <button class="export-btn" id="copy-btn" onclick="copyToClipboard()">
+            <span class="material-symbols-rounded">content_copy</span>
+            Copy to clipboard
+        </button>
+
         <button class="save-btn" id="save-btn" onclick="saveDraft()">
             <span class="material-symbols-rounded">save</span>
             Save
@@ -397,6 +432,47 @@
                 saveDraft();
             }
         });
+
+        // ── Download MD ──────────────────────────────────────────────
+        function downloadMarkdown() {
+            const content = textarea.value;
+            const blob = new Blob([content], { type: 'text/markdown' });
+            
+            // Generate filename from draft
+            const videoName = {{ draft.video_name | tojson }} || 'draft';
+            const filename = `${videoName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_draft.md`;
+            
+            // Create download link and trigger download
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showToast('Markdown downloaded!', 'success');
+        }
+
+        // ── Copy to clipboard ────────────────────────────────────────
+        async function copyToClipboard() {
+            const content = textarea.value;
+            const copyBtn = document.getElementById('copy-btn');
+            const originalHTML = copyBtn.innerHTML;
+            
+            try {
+                await navigator.clipboard.writeText(content);
+                
+                // Show success feedback
+                copyBtn.innerHTML = '<span class="material-symbols-rounded">check</span>Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalHTML;
+                }, 2000);
+                
+            } catch (err) {
+                console.error('Copy failed:', err);
+                showToast('Failed to copy to clipboard', 'error');
+            }
+        }
 
         // ── Toast ────────────────────────────────────────────────────
         function showToast(message, type = 'info') {
