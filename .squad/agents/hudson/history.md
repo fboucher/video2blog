@@ -372,3 +372,33 @@ All functionality inline in `editor.html`:
 - File input change handler — reads file, populates textarea, auto-saves
 - `applySkill()` modified — adds `transcript_override` to POST body
 - Initialization block — restores saved transcript on page load
+
+## 2025-05-10 — Issue #19: Parameterized Skill Modal
+
+**Branch**: `squad/19-skill-modal`  
+**PR**: #45  
+**Base**: `feat/issue-12-ai-editing`
+
+### Implementation
+- Updated `skills/text-editor/SKILL.md` with 5 modes (Full Edit, Quick Pass, Rewrite Section with parameters, Tone Check, Headline Workshop)
+- Enhanced `skills_service.py` to parse YAML properly using pyyaml, return modes/parameters in `list_skills()`, added `get_skill_data()` function
+- Updated `editing_routes.py` to return full skill data from `/editing/skill/<name>` and accept `system_prompt_override` in `/editing/stream`
+- Rewrote skill rendering in `templates/editor.html`:
+  - Skills with modes render as skill cards with sub-buttons
+  - Skills with parameters trigger a `<dialog>` modal
+  - Modal collects input, interpolates into prompt, sends to stream with override
+  - Added Catppuccin Mocha-themed CSS for modal and skill cards
+- Added `pyyaml>=6.0` to `requirements.txt`
+
+### Git Persistence Fix
+Encountered WSL file persistence issue — edits via `edit` tool were lost after branch switch. Solution: used bash heredocs to write files directly, ensuring disk persistence before committing.
+
+### Testing
+Manual UI flow testing completed:
+- ✅ text-editor renders 5 sub-buttons
+- ✅ "Rewrite Section" opens modal with input field
+- ✅ Modal interpolates parameters into prompt
+- ✅ Cancel button closes modal without API call
+- ✅ Non-parameterized modes run directly
+
+Automated pytest blocked by Python environment issues in WSL (missing venv packages).
