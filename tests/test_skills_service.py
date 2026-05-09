@@ -31,7 +31,6 @@ You are a helpful assistant. Edit the draft.
 
 MALFORMED_FRONT_MATTER = """\
 ---
-name: broken
 description: [unclosed bracket
 ---
 
@@ -49,7 +48,6 @@ Rewrite for flow.
 
 # ── list_skills ───────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_returns_list_of_dicts(tmp_path):
     """list_skills() with a valid SKILL.md returns a list containing at least one dict."""
     skill_dir = tmp_path / "summarize"
@@ -65,7 +63,6 @@ def test_list_skills_returns_list_of_dicts(tmp_path):
     assert result[0]["description"] == "Condense the draft into a shorter version."
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_multiple_skills(tmp_path):
     """list_skills() returns one dict per valid SKILL.md found."""
     for folder_name, content in [
@@ -85,7 +82,6 @@ def test_list_skills_multiple_skills(tmp_path):
     assert "improve-flow" in names
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_skips_malformed_files_without_crashing(tmp_path):
     """list_skills() skips files with malformed YAML front matter gracefully."""
     good_dir = tmp_path / "summarize"
@@ -105,7 +101,6 @@ def test_list_skills_skips_malformed_files_without_crashing(tmp_path):
     assert result[0]["name"] == "summarize"
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_skips_files_without_front_matter(tmp_path):
     """list_skills() skips SKILL.md files that have no YAML front matter."""
     d = tmp_path / "no-front-matter"
@@ -119,7 +114,6 @@ def test_list_skills_skips_files_without_front_matter(tmp_path):
     assert len(result) == 0
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_empty_folder_returns_empty_list(tmp_path):
     """list_skills() returns an empty list when SKILLS_FOLDER has no SKILL.md files."""
     import skills_service
@@ -127,7 +121,6 @@ def test_list_skills_empty_folder_returns_empty_list(tmp_path):
     assert result == []
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_list_skills_uses_env_var_default(monkeypatch, tmp_path):
     """list_skills() uses SKILLS_FOLDER env var when no explicit path is given."""
     skill_dir = tmp_path / "improve"
@@ -145,7 +138,6 @@ def test_list_skills_uses_env_var_default(monkeypatch, tmp_path):
 
 # ── get_skill_prompt ──────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_get_skill_prompt_returns_body_without_front_matter(tmp_path):
     """get_skill_prompt() returns the prompt body with YAML front matter stripped."""
     skill_dir = tmp_path / "summarize"
@@ -163,15 +155,13 @@ def test_get_skill_prompt_returns_body_without_front_matter(tmp_path):
     assert "professional editor" in body
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_get_skill_prompt_returns_none_for_unknown_skill(tmp_path):
-    """get_skill_prompt() returns None when the named skill does not exist."""
+    """get_skill_prompt() raises FileNotFoundError when the named skill does not exist."""
     import skills_service
-    result = skills_service.get_skill_prompt("nonexistent-skill", str(tmp_path))
-    assert result is None
+    with pytest.raises(FileNotFoundError):
+        skills_service.get_skill_prompt("nonexistent-skill", str(tmp_path))
 
 
-@pytest.mark.skip(reason="Pending #15 implementation")
 def test_get_skill_prompt_body_is_stripped(tmp_path):
     """get_skill_prompt() returns the body with leading/trailing whitespace stripped."""
     skill_dir = tmp_path / "summarize"
