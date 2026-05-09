@@ -11,7 +11,7 @@ A simple web application running in a container that helps generate a blog post 
 
 ```bash
 # Run the web application
-podman run -d --name video2blog -p 5123:5000 \
+docker-d --name video2blog -p 5123:5000 \
   -v $(pwd)/uploads:/app/uploads \
   -v $(pwd)/output:/app/output \
   -v $(pwd)/data:/app/data \
@@ -31,13 +31,8 @@ Open your browser and navigate to: **http://localhost:5123**
 Create a `.env` file with:
 ```
 GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.1-flash-lite
 ```
-
-| Variable | Required | Default | Description |
-|---|---|---|---|
-| `GEMINI_API_KEY` | ✅ Yes | — | Google Gemini API key |
-| `GEMINI_MODEL` | No | `gemini-2.0-flash` | Gemini model to use for video analysis and blog generation |
 
 ## How It Works
 
