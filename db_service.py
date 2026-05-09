@@ -84,6 +84,25 @@ def init_db():
         # 5. Index for source_url (after the column is guaranteed to exist)
         conn.execute('CREATE INDEX IF NOT EXISTS idx_source_url ON video_sync(source_url)')
 
+        # 6. Drafts and version history tables
+        conn.execute('''CREATE TABLE IF NOT EXISTS drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL,
+            video_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            transcript TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS draft_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            draft_id INTEGER NOT NULL REFERENCES drafts(id) ON DELETE CASCADE,
+            content TEXT NOT NULL,
+            skill_used TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
         conn.commit()
 
 
@@ -249,3 +268,136 @@ def get_video_by_url(url: str) -> Optional[Dict[str, Any]]:
             (url,)
         ).fetchone()
         return dict(row) if row else None
+
+
+# ── Drafts ────────────────────────────────────────────────────────────────────
+
+def create_draft(video_id: str, video_name: str, content: str) -> int:
+    """
+    Insert a new draft and return its id.
+
+    Args:
+        video_id: Identifier of the source video (local_filename or URL key).
+        video_name: Human-readable video name.
+        content: Initial blog post content.
+
+    Returns:
+        The auto-assigned draft id.
+    """
+    with get_db() as conn:
+        cursor = conn.execute(
+            '''INSERT INTO drafts (video_id, video_name, content)
+               VALUES (?, ?, ?)''',
+            (video_id, video_name, content),
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_draft(draft_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Return a draft by id, or None if not found.
+
+    Args:
+        draft_id: Primary key of the draft.
+
+    Returns:
+        Row dict or None.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT * FROM drafts WHERE id = ?',
+            (draft_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def update_draft(
+    draft_id: int,
+    content: str,
+    transcript: Optional[str] = None,
+    skill_used: Optional[str] = None,
+) -> None:
+    """
+    Update draft content (and optionally transcript), then snapshot the new
+    content as a new draft_versions row.
+
+    Args:
+        draft_id: Primary key of the draft to update.
+        content: Replacement blog post content.
+        transcript: Optional replacement transcript.
+        skill_used: Label for the AI skill that produced the edit, or None for
+                    manual edits.
+    """
+    with get_db() as conn:
+        if transcript is not None:
+            conn.execute(
+                '''UPDATE drafts
+                   SET content = ?, transcript = ?, updated_at = ?
+                   WHERE id = ?''',
+                (content, transcript, datetime.now(), draft_id),
+            )
+        else:
+            conn.execute(
+                '''UPDATE drafts
+                   SET content = ?, updated_at = ?
+                   WHERE id = ?''',
+                (content, datetime.now(), draft_id),
+            )
+        conn.execute(
+            '''INSERT INTO draft_versions (draft_id, content, skill_used)
+               VALUES (?, ?, ?)''',
+            (draft_id, content, skill_used),
+        )
+        conn.commit()
+
+
+def list_draft_versions(draft_id: int) -> List[Dict[str, Any]]:
+    """
+    Return all versions for a draft, newest first.
+
+    Args:
+        draft_id: Primary key of the draft.
+
+    Returns:
+        List of row dicts ordered by created_at DESC.
+    """
+    with get_db() as conn:
+        rows = conn.execute(
+            '''SELECT * FROM draft_versions
+               WHERE draft_id = ?
+               ORDER BY id DESC''',
+            (draft_id,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+def restore_draft_version(draft_id: int, version_id: int) -> None:
+    """
+    Copy the content of a previous version back to the draft and record the
+    restore as a new version entry with skill_used='restore'.
+
+    Args:
+        draft_id: Primary key of the draft.
+        version_id: Primary key of the draft_versions row to restore from.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT content FROM draft_versions WHERE id = ? AND draft_id = ?',
+            (version_id, draft_id),
+        ).fetchone()
+        if row is None:
+            raise ValueError(
+                f"Version {version_id} not found for draft {draft_id}"
+            )
+        content = row["content"]
+        conn.execute(
+            'UPDATE drafts SET content = ?, updated_at = ? WHERE id = ?',
+            (content, datetime.now(), draft_id),
+        )
+        conn.execute(
+            '''INSERT INTO draft_versions (draft_id, content, skill_used)
+               VALUES (?, ?, 'restore')''',
+            (draft_id, content),
+        )
+        conn.commit()
