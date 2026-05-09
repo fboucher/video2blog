@@ -27,12 +27,28 @@ def get_db():
 
 def init_db():
     """Initialize database and create tables if they don't exist."""
-    # Ensure directory exists
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     with get_db() as conn:
-        conn.execute('''
-            CREATE TABLE IF NOT EXISTS video_sync (
+        # 1. Create table if fresh DB
+        conn.execute('''CREATE TABLE IF NOT EXISTS video_sync (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            local_filename TEXT UNIQUE NOT NULL,
+            video_name TEXT NOT NULL,
+            sync_status TEXT NOT NULL DEFAULT 'synced',
+            gemini_file_uri TEXT,
+            gemini_uploaded_at TIMESTAMP,
+            source_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+
+        # 2. Detect old Reka schema and migrate
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(video_sync)").fetchall()]
+        if 'reka_video_id' in cols:
+            # Full table rebuild to remove Reka columns and NOT NULL constraint
+            conn.execute("ALTER TABLE video_sync RENAME TO video_sync_old")
+            conn.execute('''CREATE TABLE video_sync (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 local_filename TEXT UNIQUE NOT NULL,
                 video_name TEXT NOT NULL,
@@ -42,16 +58,32 @@ def init_db():
                 source_url TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+            )''')
+            conn.execute('''
+                INSERT INTO video_sync (id, local_filename, video_name, sync_status, created_at, updated_at)
+                SELECT id, local_filename, video_name, 'synced', created_at, updated_at
+                FROM video_sync_old
+            ''')
+            conn.execute("DROP TABLE video_sync_old")
+
+        # 3. Create indexes (safe to run after migration)
         conn.execute('CREATE INDEX IF NOT EXISTS idx_local_filename ON video_sync(local_filename)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_sync_status ON video_sync(sync_status)')
-        # Migrate existing databases that lack the source_url column
-        try:
-            conn.execute('ALTER TABLE video_sync ADD COLUMN source_url TEXT')
-        except Exception:
-            pass  # Column already exists
+
+        # 4. Incremental column migrations (for partial Gemini schema DBs)
+        for ddl in [
+            'ALTER TABLE video_sync ADD COLUMN source_url TEXT',
+            'ALTER TABLE video_sync ADD COLUMN gemini_file_uri TEXT',
+            'ALTER TABLE video_sync ADD COLUMN gemini_uploaded_at TIMESTAMP',
+        ]:
+            try:
+                conn.execute(ddl)
+            except Exception:
+                pass  # Column already exists
+
+        # 5. Index for source_url (after the column is guaranteed to exist)
         conn.execute('CREATE INDEX IF NOT EXISTS idx_source_url ON video_sync(source_url)')
+
         conn.commit()
 
 

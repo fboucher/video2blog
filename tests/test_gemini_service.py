@@ -77,7 +77,7 @@ def test_upload_video_calls_files_api():
          patch("gemini_service._client", return_value=mock_client):
         result = gemini_service.upload_video("/app/uploads/video.mp4")
 
-    mock_client.files.upload.assert_called_once_with(path="/app/uploads/video.mp4")
+    mock_client.files.upload.assert_called_once_with(file="/app/uploads/video.mp4")
     assert result == fake_file.uri
 
 

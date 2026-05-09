@@ -260,3 +260,56 @@ Audited `static/js/app.js` and `templates/index.html` for stale Reka references 
 
 Defensive defaults ensure videos remain usable even if the backend temporarily omits explicit fields. Both defaults become no-ops once Ripley's backend fix adds explicit field values.
 
+
+## 2026-05-09: Decision — SDK Migration from google-generativeai to google-genai
+
+**Date:** 2026-05-09  
+**By:** Ripley (Backend)  
+**Status:** Implemented
+
+### Context
+
+Google ended all support for the `google-generativeai` package. Container was logging `FutureWarning: All support for the google.generativeai package has ended. Please switch to the google.genai package.` on every startup.
+
+### Decision
+
+Migrate `gemini_service.py` to `google-genai` (new unified SDK). Key changes:
+
+- `_client()` now returns `genai.Client(api_key=key)` — single entry point for all API calls
+- Chat: `client.chats.create(model=name, history=[...])` replaces `model.start_chat(history=[...])`
+- Files: `client.files.upload/get/delete` replaces module-level `genai.upload_file/get_file/delete_file`
+- `requirements.txt`: `google-generativeai` → `google-genai>=1.0.0` (latest: 2.0.1)
+
+### Consequences
+
+- **All public function signatures preserved** — no changes needed in `web_app.py` or other callers
+- **Tests updated** to patch `gemini_service._client` directly (more robust, SDK-agnostic strategy)
+- `google-genai` is actively maintained and required for continued Gemini 2.x access
+- Conversation history format (list of `{role, parts}` dicts) unchanged
+
+---
+
+## 2026-05-09: Database Fix — init_db() Migration Ordering
+
+**Date:** 2026-05-09  
+**By:** Ripley (Backend)  
+**Status:** Implemented
+
+### What
+
+Fixed `init_db()` in `db_service.py` to create `idx_source_url` index AFTER `ALTER TABLE ADD COLUMN source_url`, not before. Resolves migration crash on new DB initialization.
+
+### Why
+
+SQLite does not allow indexing non-existent columns. The migration order was:
+1. ❌ CREATE INDEX idx_source_url ON video_sync(source_url) — fails, column doesn't exist yet
+2. ALTER TABLE ADD COLUMN source_url
+
+Corrected to:
+1. ✅ ALTER TABLE ADD COLUMN source_url
+2. CREATE INDEX idx_source_url ON video_sync(source_url)
+
+### Impact
+
+- Fresh DB initialization now succeeds
+- Test coverage: 14/14 passing

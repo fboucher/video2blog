@@ -198,6 +198,16 @@ The function was defined twice. The first definition (lines 91–107) used `GEMI
 
 ## Learnings
 
+### Bug Fix — Reka schema DB migration in init_db (2026-05-09)
+
+**Problem:** The persisted Docker volume DB had the old Reka schema (`reka_video_id TEXT NOT NULL`, no `gemini_file_uri`). `CREATE TABLE IF NOT EXISTS` skips creation on existing DBs, so the new columns were never added and the NOT NULL constraint on `reka_video_id` caused `add_sync()` to fail.
+
+**Fix:** Added a Reka-schema detection step in `init_db()` using `PRAGMA table_info(video_sync)`. If `reka_video_id` is found, perform a full table rebuild: rename old table, create new table, copy rows (mapping `sync_status` to `'synced'`, NULLing Reka-only columns), drop old table. Followed by incremental `ADD COLUMN` migrations for partial Gemini schema DBs.
+
+**Pattern confirmed:** SQLite can't DROP COLUMN or remove NOT NULL without a full table rebuild. The rename→create→copy→drop pattern is the canonical SQLite migration strategy for structural schema changes.
+
+---
+
 ### Bug Fix — init_db column ordering crash + google-genai SDK migration (2026-05-09)
 
 **Bug 1 — `CREATE INDEX` before `ALTER TABLE` migration:**
@@ -214,3 +224,30 @@ Google ended support for `google.generativeai`; new SDK is `google.genai`. Key A
 
 **Test strategy:** Patching `gemini_service._client` to return a `MagicMock` is cleaner than mocking module-level `genai` attributes. Tests no longer import `google.generativeai` at all.
 
+---
+
+### Bug Fix — google.genai SDK API surface mismatches in gemini_service.py (2026-05-09)
+
+Three confirmed runtime bugs caused 500s on `POST /videos/upload-to-gemini` and `POST /gemini/ask`:
+
+**Bug 1 — `files.upload()` keyword arg:**  
+Old code: `client.files.upload(path=local_path)` — **wrong keyword**.  
+New SDK signature: `files.upload(*, file: Union[str, PathLike, IOBase], config=None)`.  
+Fix: `client.files.upload(file=local_path)`.
+
+**Bug 2 — URL video part was a raw dict:**  
+`{"file_uri": url, "mime_type": "video/mp4"}` was passed as an element of a list to `send_message()`. The SDK's internal `_is_part_type()` check uses `get_args(types.PartUnion)` which is `(str, File, Part)` — **dicts are not in this tuple**, so `_is_part_type` returns `False` and `send_message` raises `ValueError`.  
+Fix: Use `types.Part.from_uri(file_uri=url, mime_type="video/mp4")` — a proper `Part` object.
+
+**Bug 3 — History dicts had string parts:**  
+Chat history dicts `{"role": "user", "parts": ["text string"]}` were passed to `chats.create(history=...)`.  
+`_BaseChat.__init__` calls `Content.model_validate(content_dict)` on each item.  
+`Content.parts` is typed `list[Part]`, so Pydantic V2 rejects plain strings — raises `ValidationError`.  
+Fix: Added `_build_history()` helper that converts each message dict into `types.Content` with explicit `types.Part(text=p)` wrappers.
+
+**Key SDK facts verified from source (google-genai 2.0.1):**
+- `files.upload(*, file=...)` — path as positional via `file=` kwarg
+- `files.get(name=...)` returns a `File` object which IS a valid `PartUnion` member and can be passed directly to `send_message`
+- `send_message(message)` validates via `_is_part_type()` against `PartUnion = Union[str, File, Part]` — dicts are rejected at runtime even though `PartUnionDict` is in the type annotation
+- `FileState` is `CaseInSensitiveEnum(str, enum.Enum)` — both `.name` and `.value` equal `'PROCESSING'`/`'ACTIVE'` so existing state checks are correct
+- History must contain `types.Content` objects (or dicts with proper `PartDict` parts, not plain strings)
