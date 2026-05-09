@@ -251,3 +251,29 @@ Fix: Added `_build_history()` helper that converts each message dict into `types
 - `send_message(message)` validates via `_is_part_type()` against `PartUnion = Union[str, File, Part]` — dicts are rejected at runtime even though `PartUnionDict` is in the type annotation
 - `FileState` is `CaseInSensitiveEnum(str, enum.Enum)` — both `.name` and `.value` equal `'PROCESSING'`/`'ACTIVE'` so existing state checks are correct
 - History must contain `types.Content` objects (or dicts with proper `PartDict` parts, not plain strings)
+
+---
+
+### Issue #13 — DB Layer: Drafts & Version Schema (2026-05-09)
+
+**Branch:** `squad/13-db-drafts-schema` → PR #36 → target `feat/issue-12-ai-editing`
+
+**Schema decisions:**
+- `drafts` table stores current content + optional transcript. `video_id` is a string key (local_filename or URL pseudo-filename) matching `video_sync`.
+- `draft_versions` stores every content snapshot with `skill_used TEXT` (NULL = manual edit, `'restore'` = version restore, any string = AI skill label).
+- Foreign key `draft_id REFERENCES drafts(id) ON DELETE CASCADE` enforces referential integrity.
+
+**Function signatures established:**
+```python
+create_draft(video_id: str, video_name: str, content: str) -> int
+get_draft(draft_id: int) -> dict | None
+update_draft(draft_id: int, content: str, transcript: str | None = None, skill_used: str | None = None) -> None
+list_draft_versions(draft_id: int) -> list[dict]
+restore_draft_version(draft_id: int, version_id: int) -> None  # raises ValueError on bad version_id
+```
+
+**Patterns/gotchas:**
+- `update_draft()` signature extends the spec with an optional `skill_used` param so callers (AI skills) don't need a separate path.
+- `list_draft_versions()` orders by `id DESC` (not `created_at DESC`) — SQLite timestamps have 1-second resolution, which causes ties on fast consecutive inserts.
+- `restore_draft_version()` raises `ValueError` (not silent) when `version_id` doesn't belong to `draft_id`. Protects against cross-draft corruption.
+- Tests use same `mem_db` fixture pattern as `test_db_service.py` (patch `db_service.get_db` + `os.makedirs`, call `init_db()`).
