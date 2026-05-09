@@ -7,7 +7,7 @@ Routes:
   PUT  /editing/drafts/<draft_id>  — Update draft content (200)
   GET  /editor                     — Render editor page (200/400/404)
   GET  /editing/skills             — List available skills (200)
-  GET  /editing/skill/<name>       — Get skill prompt body (200/404)
+  GET  /editing/skill/<name>       — Get full skill data (200/404)
 """
 
 from flask import Blueprint, request, jsonify, render_template, abort, Response, stream_with_context
@@ -81,10 +81,10 @@ def list_skills():
 
 @editing_bp.route("/editing/skill/<skill_name>", methods=["GET"])
 def get_skill(skill_name):
-    """Return the prompt body for a specific skill."""
+    """Return the full skill data (front matter + prompt body)."""
     try:
-        prompt = skills_service.get_skill_prompt(skill_name)
-        return jsonify({"prompt": prompt})
+        skill_data = skills_service.get_skill_data(skill_name)
+        return jsonify(skill_data)
     except FileNotFoundError:
         abort(404)
     except ValueError as e:
@@ -100,6 +100,7 @@ def stream_edit():
       {
         "draft_id": int,
         "skill_name": str,
+        "system_prompt_override": str (optional),
         "transcript_override": str (optional),
         "messages": list (optional, reserved for multi-turn)
       }
@@ -111,6 +112,7 @@ def stream_edit():
     data = request.get_json()
     draft_id = data.get('draft_id')
     skill_name = data.get('skill_name')
+    system_prompt_override = data.get('system_prompt_override')
     transcript_override = data.get('transcript_override')
 
     if not draft_id or not skill_name:
@@ -123,10 +125,14 @@ def stream_edit():
     if not editing_service.is_configured():
         return jsonify({'error': 'Editing service not configured. Set EDITING_API_KEY.'}), 503
 
-    try:
-        system_prompt = skills_service.get_skill_prompt(skill_name)
-    except FileNotFoundError:
-        return jsonify({'error': f'Skill not found: {skill_name}'}), 404
+    # Use override if provided, otherwise fetch from skill
+    if system_prompt_override:
+        system_prompt = system_prompt_override
+    else:
+        try:
+            system_prompt = skills_service.get_skill_prompt(skill_name)
+        except FileNotFoundError:
+            return jsonify({'error': f'Skill not found: {skill_name}'}), 404
 
     transcript = transcript_override or draft.get('transcript')
 

@@ -1,6 +1,21 @@
 ---
 name: text-editor
 description: General-purpose text editing and proofreading
+modes:
+  - name: full-edit
+    label: "Full Edit"
+  - name: quick-pass
+    label: "Quick Pass"
+  - name: rewrite-section
+    label: "Rewrite Section"
+    parameters:
+      - name: section
+        label: "Which section to rewrite?"
+        placeholder: "e.g. Introduction"
+  - name: tone-check
+    label: "Tone Check"
+  - name: headline-workshop
+    label: "Headline Workshop"
 ---
 You are an expert copy editor. The user will provide a piece of text.
 

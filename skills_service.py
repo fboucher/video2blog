@@ -2,13 +2,15 @@
 Skills discovery and prompt loading service — Issue #15.
 
 Functions:
-  list_skills(skills_folder=None) → list of {name, description} dicts
+  list_skills(skills_folder=None) → list of {name, description, modes?, parameters?} dicts
   get_skill_prompt(skill_name, skills_folder=None) → prompt body (str)
+  get_skill_data(skill_name, skills_folder=None) → full skill data dict
 """
 
 import os
 import re
 import logging
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +39,14 @@ def _parse_frontmatter(content):
     frontmatter_raw = match.group(1)
     body = match.group(2)
     
-    # Parse YAML manually (simple key: value pairs)
-    frontmatter = {}
-    for line in frontmatter_raw.split('\n'):
-        line = line.strip()
-        if not line or ':' not in line:
-            continue
-        key, value = line.split(':', 1)
-        frontmatter[key.strip()] = value.strip()
+    # Parse YAML using PyYAML for proper structure support
+    try:
+        frontmatter = yaml.safe_load(frontmatter_raw)
+        if frontmatter is None:
+            frontmatter = {}
+    except yaml.YAMLError as e:
+        logger.warning(f"Failed to parse YAML front matter: {e}")
+        return None, content
     
     return frontmatter, body
 
@@ -56,7 +58,7 @@ def list_skills(skills_folder=None):
     Each skill is a subdirectory containing a SKILL.md file with YAML front matter.
     
     Returns:
-        list: [{name: str, description: str}, ...]
+        list: [{name: str, description: str, modes?: list, parameters?: list}, ...]
     
     Malformed files (missing required fields) are skipped silently with a warning.
     """
@@ -96,7 +98,16 @@ def list_skills(skills_folder=None):
                 )
                 continue
             
-            skills.append({"name": name, "description": description})
+            skill_dict = {"name": name, "description": description}
+            
+            # Include modes and parameters if present
+            if "modes" in frontmatter:
+                skill_dict["modes"] = frontmatter["modes"]
+            
+            if "parameters" in frontmatter:
+                skill_dict["parameters"] = frontmatter["parameters"]
+            
+            skills.append(skill_dict)
         
         except Exception as e:
             logger.warning(f"Failed to parse skill {entry}: {e}")
@@ -135,3 +146,54 @@ def get_skill_prompt(skill_name, skills_folder=None):
         raise ValueError(f"Skill {skill_name}: missing front matter")
     
     return body.strip()
+
+
+def get_skill_data(skill_name, skills_folder=None):
+    """
+    Load full skill data including front matter and prompt body.
+    
+    Args:
+        skill_name: Name of the skill (subdirectory name)
+        skills_folder: Optional override for skills folder path
+    
+    Returns:
+        dict: {name, description, modes?, parameters?, prompt}
+    
+    Raises:
+        FileNotFoundError: If the skill does not exist
+        ValueError: If the SKILL.md is malformed
+    """
+    folder = _get_skills_folder(skills_folder)
+    skill_file = os.path.join(folder, skill_name, "SKILL.md")
+    
+    if not os.path.isfile(skill_file):
+        raise FileNotFoundError(f"Skill not found: {skill_name}")
+    
+    with open(skill_file, "r", encoding="utf-8") as f:
+        content = f.read()
+    
+    frontmatter, body = _parse_frontmatter(content)
+    
+    if not frontmatter:
+        raise ValueError(f"Skill {skill_name}: missing front matter")
+    
+    name = frontmatter.get("name")
+    description = frontmatter.get("description")
+    
+    if not name or not description:
+        raise ValueError(f"Skill {skill_name}: missing required fields (name, description)")
+    
+    skill_data = {
+        "name": name,
+        "description": description,
+        "prompt": body.strip()
+    }
+    
+    # Include modes and parameters if present
+    if "modes" in frontmatter:
+        skill_data["modes"] = frontmatter["modes"]
+    
+    if "parameters" in frontmatter:
+        skill_data["parameters"] = frontmatter["parameters"]
+    
+    return skill_data

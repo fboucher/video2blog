@@ -588,6 +588,138 @@
             font-size: 0.8rem;
             color: var(--ctp-mocha-subtext0);
         }
+
+        /* ── Skill cards with modes ──────────────────────────────── */
+        .skill-card {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding: 12px 16px;
+            background: var(--ctp-mocha-surface0);
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 8px;
+        }
+
+        .skill-card-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-lavender);
+            margin-bottom: 4px;
+        }
+
+        .skill-sub-btn {
+            padding: 8px 12px;
+            background: var(--ctp-mocha-surface1);
+            color: var(--ctp-mocha-text);
+            border: 1px solid var(--ctp-mocha-surface2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            text-align: left;
+            transition: all 0.2s;
+        }
+
+        .skill-sub-btn:hover {
+            background: var(--ctp-mocha-surface2);
+            border-color: var(--ctp-mocha-mauve);
+            transform: translateX(4px);
+        }
+
+        /* ── Parameter modal ─────────────────────────────────────── */
+        dialog#skill-modal {
+            padding: 0;
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 12px;
+            background: var(--ctp-mocha-base);
+            color: var(--ctp-mocha-text);
+            min-width: 400px;
+            max-width: 500px;
+        }
+
+        dialog#skill-modal::backdrop {
+            background: rgba(17, 17, 27, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        #modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid var(--ctp-mocha-surface0);
+            color: var(--ctp-mocha-lavender);
+        }
+
+        #modal-inputs {
+            padding: 20px 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        #modal-inputs label {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--ctp-mocha-subtext0);
+        }
+
+        #modal-inputs input {
+            padding: 10px 12px;
+            background: var(--ctp-mocha-surface0);
+            color: var(--ctp-mocha-text);
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        #modal-inputs input:focus {
+            border-color: var(--ctp-mocha-blue);
+        }
+
+        #modal-inputs input::placeholder {
+            color: var(--ctp-mocha-overlay0);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            padding: 16px 24px 20px;
+            border-top: 1px solid var(--ctp-mocha-surface0);
+        }
+
+        .modal-actions button {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #modal-run {
+            background: var(--ctp-mocha-green);
+            color: var(--ctp-mocha-crust);
+        }
+
+        #modal-run:hover {
+            background: var(--ctp-mocha-blue);
+            transform: translateY(-1px);
+        }
+
+        #modal-cancel {
+            background: var(--ctp-mocha-surface1);
+            color: var(--ctp-mocha-text);
+        }
+
+        #modal-cancel:hover {
+            background: var(--ctp-mocha-surface2);
+        }
     </style>
 </head>
 <body>
@@ -863,6 +995,11 @@
         // ── Load skills ──────────────────────────────────────────────
         async function loadSkills() {
             const container = document.getElementById('skills-container');
+            
+            // Remove the loading message
+            const loadingMsg = container.querySelector('.skills-loading');
+            if (loadingMsg) loadingMsg.remove();
+            
             try {
                 const resp = await fetch('/editing/skills');
                 if (!resp.ok) throw new Error(`Failed to load skills: ${resp.status}`);
@@ -870,29 +1007,211 @@
                 const skills = await resp.json();
                 
                 if (skills.length === 0) {
-                    container.innerHTML = '<div class="skills-loading">No skills available</div>';
+                    const noSkills = document.createElement('div');
+                    noSkills.className = 'skills-loading';
+                    noSkills.textContent = 'No skills available';
+                    container.appendChild(noSkills);
                     return;
                 }
                 
-                container.innerHTML = '';
-                
                 skills.forEach(skill => {
-                    const btn = document.createElement('button');
-                    btn.className = 'skill-btn';
-                    btn.onclick = () => applySkill(skill.name);
-                    
-                    btn.innerHTML = `
-                        <div class="skill-btn-name">${skill.name}</div>
-                        <div class="skill-btn-description">${skill.description}</div>
-                    `;
-                    
-                    container.appendChild(btn);
+                    if (skill.modes && skill.modes.length > 0) {
+                        // Render skill card with sub-buttons
+                        const card = document.createElement('div');
+                        card.className = 'skill-card';
+                        
+                        const nameSpan = document.createElement('div');
+                        nameSpan.className = 'skill-card-name';
+                        nameSpan.textContent = skill.description;
+                        card.appendChild(nameSpan);
+                        
+                        skill.modes.forEach(mode => {
+                            const btn = document.createElement('button');
+                            btn.className = 'skill-sub-btn';
+                            btn.textContent = mode.label;
+                            btn.onclick = () => {
+                                if (mode.parameters && mode.parameters.length > 0) {
+                                    openSkillModal(skill.name, mode.name, mode.label, mode.parameters);
+                                } else {
+                                    runSkillWithParams(skill.name, mode.name, mode.label, {});
+                                }
+                            };
+                            card.appendChild(btn);
+                        });
+                        
+                        container.appendChild(card);
+                    } else {
+                        // Simple skill button
+                        const btn = document.createElement('button');
+                        btn.className = 'skill-btn';
+                        btn.onclick = () => applySkill(skill.name);
+                        
+                        btn.innerHTML = `
+                            <div class="skill-btn-name">${skill.name}</div>
+                            <div class="skill-btn-description">${skill.description}</div>
+                        `;
+                        
+                        container.appendChild(btn);
+                    }
                 });
             } catch (err) {
                 console.error('Failed to load skills:', err);
-                container.innerHTML = '<div class="skills-loading">Failed to load skills</div>';
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'skills-loading';
+                errorMsg.textContent = 'Failed to load skills';
+                container.appendChild(errorMsg);
             }
         }
+
+        // ── Parameter modal ──────────────────────────────────────────
+        let pendingSkillRun = null;
+
+        function openSkillModal(skillName, modeName, modeLabel, parameters) {
+            const modal = document.getElementById('skill-modal');
+            document.getElementById('modal-title').textContent = modeLabel || skillName;
+            
+            const inputsDiv = document.getElementById('modal-inputs');
+            inputsDiv.innerHTML = parameters.map(p => `
+                <label>
+                    ${p.label}
+                    <input type="text" name="${p.name}" placeholder="${p.placeholder || ''}" />
+                </label>
+            `).join('');
+            
+            pendingSkillRun = {skillName, modeName, modeLabel, parameters};
+            
+            document.getElementById('modal-run').onclick = () => {
+                const params = {};
+                inputsDiv.querySelectorAll('input').forEach(inp => {
+                    params[inp.name] = inp.value;
+                });
+                modal.close();
+                runSkillWithParams(skillName, modeName, modeLabel, params);
+            };
+            
+            document.getElementById('modal-cancel').onclick = () => {
+                modal.close();
+                pendingSkillRun = null;
+            };
+            
+            modal.showModal();
+        }
+
+        async function runSkillWithParams(skillName, modeName, modeLabel, params) {
+            console.log('Running skill with params:', skillName, modeName, params);
+            
+            try {
+                // Fetch the skill data
+                const skillResp = await fetch(`/editing/skill/${skillName}`);
+                if (!skillResp.ok) throw new Error(`Failed to fetch skill: ${skillResp.status}`);
+                
+                const skillData = await skillResp.json();
+                let prompt = skillData.prompt;
+                
+                // Interpolate parameters
+                for (const [key, value] of Object.entries(params)) {
+                    prompt = prompt.replaceAll(`{{${key}}}`, value);
+                }
+                
+                // If mode specified, prepend mode to prompt
+                if (modeName) {
+                    prompt = `Mode: ${modeLabel || modeName}\n\n` + prompt;
+                }
+                
+                // Call stream with override
+                await runSkillWithPrompt(skillName, prompt, modeLabel || modeName);
+            } catch (err) {
+                console.error('Failed to run skill:', err);
+                showToast(`Failed to run skill: ${err.message}`, 'error');
+            }
+        }
+
+        async function runSkillWithPrompt(skillName, promptOverride, displayName) {
+            console.log('Running skill with prompt override:', skillName);
+            
+            try {
+                const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
+                
+                const response = await fetch('/editing/stream', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        draft_id: DRAFT_ID,
+                        skill_name: skillName,
+                        system_prompt_override: promptOverride,
+                        transcript_override: transcriptValue
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `Server returned ${response.status}`);
+                }
+
+                // Create AI response bubble
+                const container = document.getElementById('skills-container');
+                const bubble = document.createElement('div');
+                bubble.className = 'ai-bubble streaming';
+                container.appendChild(bubble);
+                
+                // Scroll to bottom
+                container.scrollTop = container.scrollHeight;
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let buffer = '';
+
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    
+                    // Parse SSE lines: "data: {...}\n\n"
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const chunk = JSON.parse(line.slice(6));
+                                
+                                if (chunk.delta) {
+                                    fullText += chunk.delta;
+                                    bubble.textContent = fullText;
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.done) {
+                                    bubble.classList.remove('streaming');
+                                    
+                                    // Add Apply to draft button
+                                    const btn = document.createElement('button');
+                                    btn.className = 'apply-btn';
+                                    btn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
+                                    btn.onclick = () => applyToDraft(fullText, displayName || skillName);
+                                    bubble.appendChild(btn);
+                                    
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.error) {
+                                    throw new Error(chunk.error);
+                                }
+                            } catch (parseError) {
+                                console.error('Failed to parse SSE chunk:', parseError, line);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Skill execution failed:', err);
+                showToast(`Failed to run skill: ${err.message}`, 'error');
+            }
+        }
+
 
         async function applySkill(skillName) {
             console.log('Applying skill:', skillName);
@@ -1005,5 +1324,16 @@
         // Load skills on page load
         loadSkills();
     </script>
+
+    <!-- Parameter modal -->
+    <dialog id="skill-modal">
+        <h3 id="modal-title">Skill Parameters</h3>
+        <div id="modal-inputs"></div>
+        <div class="modal-actions">
+            <button id="modal-cancel">Cancel</button>
+            <button id="modal-run">Run</button>
+        </div>
+    </dialog>
+
 </body>
 </html>

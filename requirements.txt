@@ -8,3 +8,4 @@ google-genai>=1.0.0
 yt-dlp
 anthropic
 openai
+pyyaml>=6.0
