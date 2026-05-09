@@ -502,11 +502,19 @@ async function handleUrlExtraction() {
     progress.classList.remove('hidden');
     resultsContent.classList.add('hidden');
 
+    // Pass AI-suggested timestamps if available so extraction uses them
+    const timestampsInput = document.getElementById('timestamps').value.trim();
+    const body = { filename };
+    if (timestampsInput) {
+        body.timestamps = timestampsInput;
+        body.frames_per_timestamp = parseInt(document.getElementById('frames-per-timestamp').value) || 1;
+    }
+
     try {
         const response = await fetch('/videos/extract-frames-url', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filename })
+            body: JSON.stringify(body)
         });
         const data = await response.json();
 
@@ -539,7 +547,7 @@ async function handleExtraction() {
         return;
     }
     
-    if (!currentVideo.local_filepath) {
+    if (!currentVideo.filepath) {
         showToast('Please select a video with local copy first', 'error');
         return;
     }
@@ -567,7 +575,7 @@ async function handleExtraction() {
     }
     
     const params = {
-        filepath: currentVideo.local_filepath,
+        filepath: currentVideo.filepath,
         mode: 'timestamp',
         timestamps: timestamps,
         frames_per_timestamp: parseInt(document.getElementById('frames-per-timestamp').value)

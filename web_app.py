@@ -453,7 +453,8 @@ def upload_to_gemini():
 def extract_frames_url():
     """Download a URL video via yt-dlp and run keyframe extraction.
 
-    Expects JSON body: {"filename": "<pseudo-filename>"}
+    Expects JSON body: {"filename": "<pseudo-filename>", "timestamps": "10.5,25.0"}
+    If timestamps are provided they are used for extraction; otherwise scene detection is used.
     Returns JSON: {"frames": [...], "filename": "<local_filename>"} or error.
     """
     data = request.get_json()
@@ -483,8 +484,14 @@ def extract_frames_url():
     db_service.convert_url_video_to_local(filename, local_filename)
 
     output_dir = os.path.join(app.config['OUTPUT_FOLDER'], Path(local_filename).stem)
+    timestamps_raw = data.get('timestamps') if data else None
     try:
-        results = extract_keyframes(local_path, output_dir)
+        if timestamps_raw:
+            timestamps = [float(t.strip()) for t in str(timestamps_raw).split(',') if t.strip()]
+            frames_per_ts = int(data.get('frames_per_timestamp', 1))
+            results = extract_frames_at_timestamps(local_path, output_dir, timestamps, frames_per_ts)
+        else:
+            results = extract_keyframes(local_path, output_dir)
         frame_files = sorted(f for f in os.listdir(output_dir) if f.endswith('.jpg'))
         return jsonify({
             'success': True,
