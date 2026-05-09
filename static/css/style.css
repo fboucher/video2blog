@@ -227,7 +227,7 @@ details.card[open] > summary {
     transform: scale(1.1);
 }
 
-.file-upload-reka-btn {
+.file-upload-v-ai-btn {
     background: var(--ctp-mocha-blue);
     color: var(--ctp-mocha-crust);
     padding: 8px 12px;
@@ -240,11 +240,11 @@ details.card[open] > summary {
     justify-content: center;
 }
 
-.file-upload-reka-btn .material-symbols-rounded {
+.file-upload-v-ai-btn .material-symbols-rounded {
     font-size: 20px;
 }
 
-.file-upload-reka-btn:hover {
+.file-upload-v-ai-btn:hover {
     background: var(--ctp-mocha-lavender);
     transform: scale(1.1);
 }
@@ -778,13 +778,13 @@ details.card[open] > summary {
 }
 
 /* Reka Videos Section */
-.reka-videos-list {
+.v-ai-videos-list {
     max-height: 300px;
     overflow-y: auto;
     margin-bottom: 20px;
 }
 
-.reka-video-item {
+.v-ai-video-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -797,38 +797,38 @@ details.card[open] > summary {
     background: var(--ctp-mocha-surface0);
 }
 
-.reka-video-item:hover {
+.v-ai-video-item:hover {
     border-color: var(--ctp-mocha-blue);
     background: var(--ctp-mocha-surface1);
 }
 
-.reka-video-item.selected {
+.v-ai-video-item.selected {
     border-color: var(--ctp-mocha-blue);
     background: var(--ctp-mocha-surface1);
 }
 
-.reka-video-info {
+.v-ai-video-info {
     flex: 1;
 }
 
-.reka-video-info .video-name {
+.v-ai-video-info .video-name {
     font-weight: 600;
     color: var(--ctp-mocha-text);
     margin-bottom: 5px;
 }
 
-.reka-video-info .video-meta {
+.v-ai-video-info .video-meta {
     font-size: 0.85rem;
     color: var(--ctp-mocha-subtext0);
 }
 
-.reka-video-actions {
+.v-ai-video-actions {
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
-.reka-select-btn {
+.v-ai-select-btn {
     background: var(--ctp-mocha-blue);
     color: var(--ctp-mocha-crust);
     padding: 8px 20px;
@@ -839,27 +839,27 @@ details.card[open] > summary {
     transition: all 0.3s;
 }
 
-.reka-select-btn:hover:not(:disabled) {
+.v-ai-select-btn:hover:not(:disabled) {
     background: var(--ctp-mocha-lavender);
     transform: translateY(-1px);
 }
 
-.reka-select-btn:disabled {
+.v-ai-select-btn:disabled {
     background: var(--ctp-mocha-overlay0);
     color: var(--ctp-mocha-overlay1);
     cursor: not-allowed;
     opacity: 0.5;
 }
 
-.reka-video-item.disabled {
+.v-ai-video-item.disabled {
     opacity: 0.7;
 }
 
-.reka-video-item.disabled .file-name {
+.v-ai-video-item.disabled .file-name {
     color: var(--ctp-mocha-subtext0);
 }
 
-.reka-delete-btn {
+.v-ai-delete-btn {
     background: var(--ctp-mocha-red);
     color: var(--ctp-mocha-crust);
     padding: 8px 12px;
@@ -872,11 +872,11 @@ details.card[open] > summary {
     justify-content: center;
 }
 
-.reka-delete-btn .material-symbols-rounded {
+.v-ai-delete-btn .material-symbols-rounded {
     font-size: 20px;
 }
 
-.reka-delete-btn:hover {
+.v-ai-delete-btn:hover {
     background: #eb6f92;
     transform: scale(1.1);
 }
@@ -1066,26 +1066,26 @@ details.card[open] > summary {
 /* Scrollbar Styling */
 .chat-messages::-webkit-scrollbar,
 .existing-files-list::-webkit-scrollbar,
-.reka-videos-list::-webkit-scrollbar {
+.v-ai-videos-list::-webkit-scrollbar {
     width: 8px;
 }
 
 .chat-messages::-webkit-scrollbar-track,
 .existing-files-list::-webkit-scrollbar-track,
-.reka-videos-list::-webkit-scrollbar-track {
+.v-ai-videos-list::-webkit-scrollbar-track {
     background: var(--ctp-mocha-surface0);
 }
 
 .chat-messages::-webkit-scrollbar-thumb,
 .existing-files-list::-webkit-scrollbar-thumb,
-.reka-videos-list::-webkit-scrollbar-thumb {
+.v-ai-videos-list::-webkit-scrollbar-thumb {
     background: var(--ctp-mocha-overlay0);
     border-radius: 4px;
 }
 
 .chat-messages::-webkit-scrollbar-thumb:hover,
 .existing-files-list::-webkit-scrollbar-thumb:hover,
-.reka-videos-list::-webkit-scrollbar-thumb:hover {
+.v-ai-videos-list::-webkit-scrollbar-thumb:hover {
     background: var(--ctp-mocha-overlay1);
 }
 
