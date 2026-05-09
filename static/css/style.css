@@ -227,27 +227,8 @@ details.card[open] > summary {
     transform: scale(1.1);
 }
 
-.file-upload-v-ai-btn {
-    background: var(--ctp-mocha-blue);
-    color: var(--ctp-mocha-crust);
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
 
-.file-upload-v-ai-btn .material-symbols-rounded {
-    font-size: 20px;
-}
 
-.file-upload-v-ai-btn:hover {
-    background: var(--ctp-mocha-lavender);
-    transform: scale(1.1);
-}
 
 .no-files-message {
     text-align: center;
@@ -777,109 +758,6 @@ details.card[open] > summary {
     border-left: 4px solid var(--ctp-mocha-green);
 }
 
-/* Reka Videos Section */
-.v-ai-videos-list {
-    max-height: 300px;
-    overflow-y: auto;
-    margin-bottom: 20px;
-}
-
-.v-ai-video-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 15px;
-    border: 2px solid var(--ctp-mocha-overlay0);
-    border-radius: 8px;
-    margin-bottom: 10px;
-    cursor: pointer;
-    transition: all 0.3s;
-    background: var(--ctp-mocha-surface0);
-}
-
-.v-ai-video-item:hover {
-    border-color: var(--ctp-mocha-blue);
-    background: var(--ctp-mocha-surface1);
-}
-
-.v-ai-video-item.selected {
-    border-color: var(--ctp-mocha-blue);
-    background: var(--ctp-mocha-surface1);
-}
-
-.v-ai-video-info {
-    flex: 1;
-}
-
-.v-ai-video-info .video-name {
-    font-weight: 600;
-    color: var(--ctp-mocha-text);
-    margin-bottom: 5px;
-}
-
-.v-ai-video-info .video-meta {
-    font-size: 0.85rem;
-    color: var(--ctp-mocha-subtext0);
-}
-
-.v-ai-video-actions {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.v-ai-select-btn {
-    background: var(--ctp-mocha-blue);
-    color: var(--ctp-mocha-crust);
-    padding: 8px 20px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    font-weight: 600;
-    transition: all 0.3s;
-}
-
-.v-ai-select-btn:hover:not(:disabled) {
-    background: var(--ctp-mocha-lavender);
-    transform: translateY(-1px);
-}
-
-.v-ai-select-btn:disabled {
-    background: var(--ctp-mocha-overlay0);
-    color: var(--ctp-mocha-overlay1);
-    cursor: not-allowed;
-    opacity: 0.5;
-}
-
-.v-ai-video-item.disabled {
-    opacity: 0.7;
-}
-
-.v-ai-video-item.disabled .file-name {
-    color: var(--ctp-mocha-subtext0);
-}
-
-.v-ai-delete-btn {
-    background: var(--ctp-mocha-red);
-    color: var(--ctp-mocha-crust);
-    padding: 8px 12px;
-    border-radius: 6px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.v-ai-delete-btn .material-symbols-rounded {
-    font-size: 20px;
-}
-
-.v-ai-delete-btn:hover {
-    background: #eb6f92;
-    transform: scale(1.1);
-}
 
 /* Chat Interface */
 #chat-section {
@@ -1065,27 +943,23 @@ details.card[open] > summary {
 
 /* Scrollbar Styling */
 .chat-messages::-webkit-scrollbar,
-.existing-files-list::-webkit-scrollbar,
-.v-ai-videos-list::-webkit-scrollbar {
+.existing-files-list::-webkit-scrollbar {
     width: 8px;
 }
 
 .chat-messages::-webkit-scrollbar-track,
-.existing-files-list::-webkit-scrollbar-track,
-.v-ai-videos-list::-webkit-scrollbar-track {
+.existing-files-list::-webkit-scrollbar-track {
     background: var(--ctp-mocha-surface0);
 }
 
 .chat-messages::-webkit-scrollbar-thumb,
-.existing-files-list::-webkit-scrollbar-thumb,
-.v-ai-videos-list::-webkit-scrollbar-thumb {
+.existing-files-list::-webkit-scrollbar-thumb {
     background: var(--ctp-mocha-overlay0);
     border-radius: 4px;
 }
 
 .chat-messages::-webkit-scrollbar-thumb:hover,
-.existing-files-list::-webkit-scrollbar-thumb:hover,
-.v-ai-videos-list::-webkit-scrollbar-thumb:hover {
+.existing-files-list::-webkit-scrollbar-thumb:hover {
     background: var(--ctp-mocha-overlay1);
 }
 
