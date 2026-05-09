@@ -259,3 +259,4 @@ Audited `static/js/app.js` and `templates/index.html` for stale Reka references 
 ### Why
 
 Defensive defaults ensure videos remain usable even if the backend temporarily omits explicit fields. Both defaults become no-ops once Ripley's backend fix adds explicit field values.
+
