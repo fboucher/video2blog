@@ -7,8 +7,6 @@ Routes tested:
   GET  /editing/drafts/<id> → draft dict
   PUT  /editing/drafts/<id> → updates content + creates version
   GET  /editor?draft_id=<id>→ renders editor.html (400 when draft_id absent)
-
-Tests are marked skip until the #14 implementation lands.
 """
 
 import sqlite3
@@ -50,7 +48,6 @@ def client(mem_db):
 
 # ── POST /editing/drafts ──────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_post_editing_drafts_returns_201(client):
     """POST /editing/drafts with valid payload returns 201 and a draft_id."""
     resp = client.post(
@@ -67,7 +64,6 @@ def test_post_editing_drafts_returns_201(client):
     assert isinstance(data["draft_id"], int)
 
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_post_editing_drafts_missing_fields_returns_400(client):
     """POST /editing/drafts without required fields returns 400."""
     resp = client.post("/editing/drafts", json={})
@@ -76,10 +72,8 @@ def test_post_editing_drafts_missing_fields_returns_400(client):
 
 # ── GET /editing/drafts/<draft_id> ────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_get_editing_draft_returns_draft_dict(client):
     """GET /editing/drafts/<id> returns the draft as a JSON dict."""
-    # Create a draft first via the API
     post_resp = client.post(
         "/editing/drafts",
         json={"video_id": "vid-1", "video_name": "Talk", "content": "Hello."},
@@ -93,7 +87,6 @@ def test_get_editing_draft_returns_draft_dict(client):
     assert data["content"] == "Hello."
 
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_get_editing_draft_unknown_id_returns_404(client):
     """GET /editing/drafts/<id> for non-existent draft returns 404."""
     resp = client.get("/editing/drafts/99999")
@@ -102,7 +95,6 @@ def test_get_editing_draft_unknown_id_returns_404(client):
 
 # ── PUT /editing/drafts/<draft_id> ────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_put_editing_draft_updates_content(client, mem_db):
     """PUT /editing/drafts/<id> persists the new content."""
     post_resp = client.post(
@@ -117,12 +109,10 @@ def test_put_editing_draft_updates_content(client, mem_db):
     )
     assert put_resp.status_code == 200
 
-    # Verify the DB was updated
     draft = db_service.get_draft(draft_id)
     assert draft["content"] == "Updated content."
 
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_put_editing_draft_creates_version(client, mem_db):
     """PUT /editing/drafts/<id> inserts a row in draft_versions."""
     post_resp = client.post(
@@ -139,10 +129,9 @@ def test_put_editing_draft_creates_version(client, mem_db):
 
 # ── GET /editor ───────────────────────────────────────────────────────────────
 
-@pytest.mark.skip(reason="Pending #14 implementation")
+@pytest.mark.skip(reason="Pending Hudson's editor.html template (squad/14-editor-ui)")
 def test_get_editor_renders_template(client):
     """GET /editor?draft_id=<id> renders editor.html (200)."""
-    # Create a draft so the route has something to load
     post_resp = client.post(
         "/editing/drafts",
         json={"video_id": "vid-4", "video_name": "Talk", "content": "Draft."},
@@ -156,14 +145,12 @@ def test_get_editor_renders_template(client):
     )
 
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_get_editor_without_draft_id_returns_400(client):
     """GET /editor without draft_id query param returns 400."""
     resp = client.get("/editor")
     assert resp.status_code == 400
 
 
-@pytest.mark.skip(reason="Pending #14 implementation")
 def test_get_editor_with_unknown_draft_id_returns_404(client):
     """GET /editor?draft_id=<nonexistent> returns 404."""
     resp = client.get("/editor?draft_id=99999")

@@ -19,6 +19,7 @@ from werkzeug.utils import secure_filename
 from keyframe_extractor import extract_keyframes, extract_frames_at_timestamps
 import db_service
 import gemini_service
+from editing_routes import editing_bp
 
 
 # Constants
@@ -41,6 +42,9 @@ Path(OUTPUT_FOLDER).mkdir(parents=True, exist_ok=True)
 
 # Initialize database
 db_service.init_db()
+
+# Register blueprints
+app.register_blueprint(editing_bp)
 
 
 def sanitize_filename(video_name: str) -> str:
