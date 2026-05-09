@@ -710,6 +710,27 @@
         const saveIndicator = document.getElementById('save-indicator');
         let autosaveTimer = null;
         let lastSavedContent = textarea.value;
+        
+        // ── Undo stack ───────────────────────────────────────────────
+        const undoStack = [];
+
+        function updateUndoButton() {
+            const btn = document.getElementById('undo-btn');
+            if (btn) btn.disabled = undoStack.length === 0;
+        }
+
+        function undo() {
+            if (undoStack.length === 0) return;
+            const previous = undoStack.pop();
+            document.getElementById('draft-content').value = previous;
+            updateUndoButton();
+            fetch(`/editing/drafts/${DRAFT_ID}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({content: previous})
+            });
+        }
+        
         // ── Transcript accordion ─────────────────────────────────────
         function toggleTranscript() {
             const body = document.getElementById('transcript-body');
@@ -807,6 +828,10 @@
                 e.preventDefault();
                 saveDraft();
             }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+                e.preventDefault();
+                undo();
+            }
         });
 
         // ── Download MD ──────────────────────────────────────────────
@@ -863,6 +888,11 @@
         // ── Load skills ──────────────────────────────────────────────
         async function loadSkills() {
             const container = document.getElementById('skills-container');
+            
+            // Remove the loading message
+            const loadingMsg = container.querySelector('.skills-loading');
+            if (loadingMsg) loadingMsg.remove();
+            
             try {
                 const resp = await fetch('/editing/skills');
                 if (!resp.ok) throw new Error(`Failed to load skills: ${resp.status}`);
@@ -870,27 +900,208 @@
                 const skills = await resp.json();
                 
                 if (skills.length === 0) {
-                    container.innerHTML = '<div class="skills-loading">No skills available</div>';
+                    const noSkills = document.createElement('div');
+                    noSkills.className = 'skills-loading';
+                    noSkills.textContent = 'No skills available';
+                    container.appendChild(noSkills);
                     return;
                 }
                 
-                container.innerHTML = '';
-                
                 skills.forEach(skill => {
-                    const btn = document.createElement('button');
-                    btn.className = 'skill-btn';
-                    btn.onclick = () => applySkill(skill.name);
-                    
-                    btn.innerHTML = `
-                        <div class="skill-btn-name">${skill.name}</div>
-                        <div class="skill-btn-description">${skill.description}</div>
-                    `;
-                    
-                    container.appendChild(btn);
+                    if (skill.modes && skill.modes.length > 0) {
+                        // Render skill card with sub-buttons
+                        const card = document.createElement('div');
+                        card.className = 'skill-card';
+                        
+                        const nameSpan = document.createElement('div');
+                        nameSpan.className = 'skill-card-name';
+                        nameSpan.textContent = skill.description;
+                        card.appendChild(nameSpan);
+                        
+                        skill.modes.forEach(mode => {
+                            const btn = document.createElement('button');
+                            btn.className = 'skill-sub-btn';
+                            btn.textContent = mode.label;
+                            btn.onclick = () => {
+                                if (mode.parameters && mode.parameters.length > 0) {
+                                    openSkillModal(skill.name, mode.name, mode.label, mode.parameters);
+                                } else {
+                                    runSkillWithParams(skill.name, mode.name, mode.label, {});
+                                }
+                            };
+                            card.appendChild(btn);
+                        });
+                        
+                        container.appendChild(card);
+                    } else {
+                        // Simple skill button
+                        const btn = document.createElement('button');
+                        btn.className = 'skill-btn';
+                        btn.onclick = () => applySkill(skill.name);
+                        
+                        btn.innerHTML = `
+                            <div class="skill-btn-name">${skill.name}</div>
+                            <div class="skill-btn-description">${skill.description}</div>
+                        `;
+                        
+                        container.appendChild(btn);
+                    }
                 });
             } catch (err) {
                 console.error('Failed to load skills:', err);
-                container.innerHTML = '<div class="skills-loading">Failed to load skills</div>';
+                const errorMsg = document.createElement('div');
+                errorMsg.className = 'skills-loading';
+                errorMsg.textContent = 'Failed to load skills';
+                container.appendChild(errorMsg);
+            }
+        }
+
+        // ── Parameter modal ──────────────────────────────────────────
+        let pendingSkillRun = null;
+
+        function openSkillModal(skillName, modeName, modeLabel, parameters) {
+            const modal = document.getElementById('skill-modal');
+            document.getElementById('modal-title').textContent = modeLabel || skillName;
+            
+            const inputsDiv = document.getElementById('modal-inputs');
+            inputsDiv.innerHTML = parameters.map(p => `
+                <label>
+                    ${p.label}
+                    <input type="text" name="${p.name}" placeholder="${p.placeholder || ''}" />
+                </label>
+            `).join('');
+            
+            pendingSkillRun = {skillName, modeName, modeLabel, parameters};
+            
+            document.getElementById('modal-run').onclick = () => {
+                const params = {};
+                inputsDiv.querySelectorAll('input').forEach(inp => {
+                    params[inp.name] = inp.value;
+                });
+                modal.close();
+                runSkillWithParams(skillName, modeName, modeLabel, params);
+            };
+            
+            document.getElementById('modal-cancel').onclick = () => {
+                modal.close();
+                pendingSkillRun = null;
+            };
+            
+            modal.showModal();
+        }
+
+        async function runSkillWithParams(skillName, modeName, modeLabel, params) {
+            console.log('Running skill with params:', skillName, modeName, params);
+            
+            try {
+                // Fetch the skill data
+                const skillResp = await fetch(`/editing/skill/${skillName}`);
+                if (!skillResp.ok) throw new Error(`Failed to fetch skill: ${skillResp.status}`);
+                
+                const skillData = await skillResp.json();
+                let prompt = skillData.prompt;
+                
+                // Interpolate parameters
+                for (const [key, value] of Object.entries(params)) {
+                    prompt = prompt.replaceAll(`{{${key}}}`, value);
+                }
+                
+                // If mode specified, prepend mode to prompt
+                if (modeName) {
+                    prompt = `Mode: ${modeLabel || modeName}\n\n` + prompt;
+                }
+                
+                // Call stream with override
+                await runSkillWithPrompt(skillName, prompt, modeLabel || modeName);
+            } catch (err) {
+                console.error('Failed to run skill:', err);
+                showToast(`Failed to run skill: ${err.message}`, 'error');
+            }
+        }
+
+        async function runSkillWithPrompt(skillName, promptOverride, displayName) {
+            console.log('Running skill with prompt override:', skillName);
+            
+            try {
+                const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
+                
+                const response = await fetch('/editing/stream', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        draft_id: DRAFT_ID,
+                        skill_name: skillName,
+                        system_prompt_override: promptOverride,
+                        transcript_override: transcriptValue
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `Server returned ${response.status}`);
+                }
+
+                // Create AI response bubble
+                const container = document.getElementById('skills-container');
+                const bubble = document.createElement('div');
+                bubble.className = 'ai-bubble streaming';
+                container.appendChild(bubble);
+                
+                // Scroll to bottom
+                container.scrollTop = container.scrollHeight;
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let buffer = '';
+
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    
+                    // Parse SSE lines: "data: {...}\n\n"
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const chunk = JSON.parse(line.slice(6));
+                                
+                                if (chunk.delta) {
+                                    fullText += chunk.delta;
+                                    bubble.textContent = fullText;
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.done) {
+                                    bubble.classList.remove('streaming');
+                                    
+                                    // Add Apply to draft button
+                                    const btn = document.createElement('button');
+                                    btn.className = 'apply-btn';
+                                    btn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
+                                    btn.onclick = () => applyToDraft(fullText, displayName || skillName);
+                                    bubble.appendChild(btn);
+                                    
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.error) {
+                                    throw new Error(chunk.error);
+                                }
+                            } catch (parseError) {
+                                console.error('Failed to parse SSE chunk:', parseError, line);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Skill execution failed:', err);
+                showToast(`Failed to run skill: ${err.message}`, 'error');
             }
         }
 
@@ -898,7 +1109,7 @@
             console.log('Applying skill:', skillName);
             
             try {
-                const transcriptValue = transcriptInput.value.trim() || null;
+                const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
                 
                 const response = await fetch('/editing/stream', {
                     method: 'POST',
@@ -981,6 +1192,10 @@
 
         async function applyToDraft(content, skillName) {
             try {
+                // Push current content to undo stack before replacing
+                undoStack.push(textarea.value);
+                updateUndoButton();
+                
                 // Update textarea
                 textarea.value = content;
                 
@@ -999,6 +1214,66 @@
             } catch (err) {
                 console.error('Apply failed:', err);
                 showToast(`Failed to apply: ${err.message}`, 'error');
+            }
+        }
+
+        // ── Version History ──────────────────────────────────────────
+        function toggleHistory() {
+            const list = document.getElementById('history-list');
+            const toggle = document.getElementById('history-toggle');
+            
+            if (list.classList.contains('visible')) {
+                list.classList.remove('visible');
+                toggle.classList.remove('expanded');
+            } else {
+                list.classList.add('visible');
+                toggle.classList.add('expanded');
+                loadVersions();
+            }
+        }
+
+        async function loadVersions() {
+            try {
+                const res = await fetch(`/editing/drafts/${DRAFT_ID}/versions`);
+                const versions = await res.json();
+                const list = document.getElementById('history-list');
+                
+                if (versions.length === 0) {
+                    list.innerHTML = '<div class="skills-loading">No saved versions yet.</div>';
+                    return;
+                }
+                
+                list.innerHTML = versions.map(v => `
+                    <div class="version-item">
+                        <div class="version-header">
+                            <span class="version-time">${new Date(v.created_at).toLocaleString()}</span>
+                            ${v.skill_used ? `<span class="version-skill">${v.skill_used}</span>` : ''}
+                        </div>
+                        <button class="version-restore-btn" onclick="restoreVersion(${v.id})">
+                            <span class="material-symbols-rounded">restore</span> Restore
+                        </button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error('Failed to load versions:', err);
+            }
+        }
+
+        async function restoreVersion(versionId) {
+            try {
+                // Push current content to undo stack before restoring
+                undoStack.push(textarea.value);
+                updateUndoButton();
+                
+                const res = await fetch(`/editing/drafts/${DRAFT_ID}/restore/${versionId}`, {method: 'POST'});
+                const draft = await res.json();
+                textarea.value = draft.content;
+                lastSavedContent = draft.content;
+                showToast('Version restored successfully!', 'success');
+                loadVersions();
+            } catch (err) {
+                console.error('Failed to restore version:', err);
+                showToast(`Failed to restore version: ${err.message}`, 'error');
             }
         }
 

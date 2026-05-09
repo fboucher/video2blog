@@ -185,3 +185,69 @@ def test_get_editing_skill_nonexistent_returns_404(client):
     """GET /editing/skill/<name> for non-existent skill returns 404."""
     resp = client.get("/editing/skill/nonexistent-skill")
     assert resp.status_code == 404
+
+
+# ── GET /editing/drafts/<draft_id>/versions ──────────────────────────────────
+
+def test_list_versions_ok(client):
+    """GET /editing/drafts/<id>/versions returns 200 + list."""
+    post_resp = client.post(
+        "/editing/drafts",
+        json={"video_id": "vid-5", "video_name": "Talk", "content": "v1."},
+    )
+    draft_id = post_resp.get_json()["draft_id"]
+
+    # Create a version by updating
+    client.put(f"/editing/drafts/{draft_id}", json={"content": "v2."})
+
+    resp = client.get(f"/editing/drafts/{draft_id}/versions")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+
+
+def test_list_versions_not_found(client):
+    """GET /editing/drafts/<id>/versions returns 404 for unknown draft."""
+    resp = client.get("/editing/drafts/99999/versions")
+    assert resp.status_code == 404
+
+
+# ── POST /editing/drafts/<draft_id>/restore/<version_id> ─────────────────────
+
+def test_restore_version_ok(client, mem_db):
+    """POST restore returns 200 + updated draft."""
+    post_resp = client.post(
+        "/editing/drafts",
+        json={"video_id": "vid-6", "video_name": "Talk", "content": "v1."},
+    )
+    draft_id = post_resp.get_json()["draft_id"]
+
+    # Create a version
+    client.put(f"/editing/drafts/{draft_id}", json={"content": "v2."})
+    versions = db_service.list_draft_versions(draft_id)
+    assert len(versions) > 0
+    version_id = versions[0]["id"]
+
+    # Restore
+    resp = client.post(f"/editing/drafts/{draft_id}/restore/{version_id}")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "content" in data
+
+
+def test_restore_version_draft_not_found(client):
+    """POST restore returns 404 for unknown draft."""
+    resp = client.post("/editing/drafts/99999/restore/1")
+    assert resp.status_code == 404
+
+
+def test_restore_version_version_not_found(client):
+    """POST restore returns 404 for unknown version."""
+    post_resp = client.post(
+        "/editing/drafts",
+        json={"video_id": "vid-7", "video_name": "Talk", "content": "v1."},
+    )
+    draft_id = post_resp.get_json()["draft_id"]
+
+    resp = client.post(f"/editing/drafts/{draft_id}/restore/99999")
+    assert resp.status_code == 404
