@@ -254,6 +254,49 @@
             overflow-y: auto;
         }
 
+        /* ── AI response bubble ───────────────────────────────────── */
+        .ai-bubble {
+            background: var(--ctp-mocha-surface0);
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            color: var(--ctp-mocha-text);
+            font-size: 0.9rem;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .ai-bubble.streaming {
+            border-color: var(--ctp-mocha-blue);
+        }
+
+        .apply-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 12px;
+            padding: 6px 14px;
+            background: var(--ctp-mocha-green);
+            color: var(--ctp-mocha-crust);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .apply-btn:hover {
+            background: var(--ctp-mocha-blue);
+            transform: translateY(-1px);
+        }
+
+        .apply-btn .material-symbols-rounded {
+            font-size: 16px;
+        }
+
         .skill-btn {
             display: flex;
             flex-direction: column;
@@ -518,10 +561,109 @@
             }
         }
 
-        function applySkill(skillName) {
-            // TODO: Issue #16 will wire this to the AI service
+        async function applySkill(skillName) {
             console.log('Applying skill:', skillName);
-            showToast(`Skill "${skillName}" clicked (AI wiring coming in #16)`, 'info');
+            
+            try {
+                const response = await fetch('/editing/stream', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        draft_id: DRAFT_ID,
+                        skill_name: skillName
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `Server returned ${response.status}`);
+                }
+
+                // Create AI response bubble
+                const container = document.getElementById('skills-container');
+                const bubble = document.createElement('div');
+                bubble.className = 'ai-bubble streaming';
+                container.appendChild(bubble);
+                
+                // Scroll to bottom
+                container.scrollTop = container.scrollHeight;
+
+                // Read SSE stream
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+                let buffer = '';
+
+                while (true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, {stream: true});
+                    
+                    // Parse SSE lines: "data: {...}\n\n"
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const chunk = JSON.parse(line.slice(6));
+                                
+                                if (chunk.delta) {
+                                    fullText += chunk.delta;
+                                    bubble.textContent = fullText;
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.done) {
+                                    bubble.classList.remove('streaming');
+                                    
+                                    // Add Apply to draft button
+                                    const btn = document.createElement('button');
+                                    btn.className = 'apply-btn';
+                                    btn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
+                                    btn.onclick = () => applyToDraft(fullText, skillName);
+                                    bubble.appendChild(btn);
+                                    
+                                    container.scrollTop = container.scrollHeight;
+                                }
+                                
+                                if (chunk.error) {
+                                    throw new Error(chunk.error);
+                                }
+                            } catch (parseError) {
+                                console.error('Failed to parse SSE chunk:', parseError, line);
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('Skill execution failed:', err);
+                showToast(`Failed to run skill: ${err.message}`, 'error');
+            }
+        }
+
+        async function applyToDraft(content, skillName) {
+            try {
+                // Update textarea
+                textarea.value = content;
+                
+                // Save to server
+                const resp = await fetch(`/editing/drafts/${DRAFT_ID}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content})
+                });
+                
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                
+                lastSavedContent = content;
+                showToast('Draft updated successfully!', 'success');
+                flashSaved();
+            } catch (err) {
+                console.error('Apply failed:', err);
+                showToast(`Failed to apply: ${err.message}`, 'error');
+            }
         }
 
         // Load skills on page load
