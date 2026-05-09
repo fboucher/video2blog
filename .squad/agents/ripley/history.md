@@ -330,3 +330,123 @@ restore_draft_version(draft_id: int, version_id: int) -> None  # raises ValueErr
 - Front matter is simple key:value pairs (not full YAML objects/arrays)
 - UI fetches skills on page load (no caching, no hot reload)
 
+## Issue #14 — Flask Editing Blueprint (2026-05-09)
+
+**Branch:** `squad/14-editor-routes` → PR #39 → target `feat/issue-12-ai-editing`
+
+### What was built
+- Created `editing_routes.py` as a Flask Blueprint (`editing_bp`) with 4 routes:
+  - `POST /editing/drafts` → 201 + `{draft_id}`
+  - `GET /editing/drafts/<draft_id>` → 200 draft dict / 404
+  - `PUT /editing/drafts/<draft_id>` → 200 `{status: ok}` / 400 if content missing
+  - `GET /editor?draft_id=<id>` → renders `editor.html` / 400 if no param / 404 if not found
+- Registered `editing_bp` in `web_app.py` via `app.register_blueprint(editing_bp)`
+- Integration tests: 8 pass, 1 skip (template test pending Hudson's `editor.html`)
+
+### conftest.py patterns for Flask route tests
+When importing `web_app` in tests outside Docker, three mocks are needed:
+1. `cv2` — not installed in linuxbrew Python env; `sys.modules.setdefault("cv2", MagicMock())`
+2. `numpy` — same; `sys.modules.setdefault("numpy", MagicMock())`
+3. `pathlib.Path.mkdir` — web_app.py creates `/app/uploads` at module level; wrap to swallow `PermissionError`/`FileNotFoundError`
+
+All three mocks live in `tests/conftest.py` at module level so they're in place before the first `from web_app import app` call in any fixture.
+
+### Pattern confirmed
+- Blueprint registration: `app.register_blueprint(bp)` placed immediately after `db_service.init_db()` in web_app.py — keeps the registration site obvious.
+- Hudson's `squad/14-editor-ui` branch already has `editor.html`; template test will pass once that PR merges into the base branch.
+
+---
+
+## Issue #16 — AI Streaming via editing_service + Apply to Draft (2026-05-09)
+
+**Branch:** `squad/16-editing-service` → PR #XX → target `feat/issue-12-ai-editing`
+
+### What was built
+- **`editing_service.py`** — AI text editing service module:
+  - `is_configured()` → returns True when `EDITING_API_KEY` is set
+  - `get_provider()` → returns `"anthropic"` (default) or `"openai"` based on `EDITING_PROVIDER` env var (normalized to lowercase)
+  - `stream_edit(system_prompt, draft, transcript, messages)` → generator yielding SSE-formatted JSON chunks `{"delta": "...", "done": false}` with final chunk `{"done": true}`
+  - Routes to Anthropic SDK (streaming messages) or OpenAI SDK (chat completions with stream=True)
+  - Supports `EDITING_BASE_URL` for OpenAI-compatible providers
+
+- **`POST /editing/stream` route** (`editing_routes.py`):
+  - Accepts `{draft_id, skill_name, transcript_override, messages}` (messages reserved for future multi-turn)
+  - Returns 400 if draft_id/skill_name missing, 404 if draft/skill not found, 503 if editing service not configured
+  - Streams SSE response with `Content-Type: text/event-stream` using `stream_with_context()`
+  - Fetches draft, skill prompt, transcript; passes to `editing_service.stream_edit()`
+
+- **Frontend streaming UI** (`templates/editor.html`):
+  - Skill buttons now POST to `/editing/stream` when clicked
+  - Streams response into `.ai-bubble` element in right pane using `ReadableStream` + `TextDecoder`
+  - Parses SSE chunks line-by-line: `data: {...}\n\n`
+  - Accumulates text as it arrives, appends to bubble
+  - On `done: true`, adds "Apply to draft" button to bubble
+  - "Apply to draft" replaces left-pane textarea content + PUTs to `/editing/drafts/<id>` to persist
+  - Shows success toast on apply
+
+- **Configuration** (`.env.example`):
+  - Added `EDITING_PROVIDER` (default: anthropic)
+  - `EDITING_API_KEY` (required)
+  - `EDITING_MODEL` (defaults: claude-3-haiku-20240307 for Anthropic, gpt-4o-mini for OpenAI)
+  - `EDITING_BASE_URL` (optional, for OpenAI-compatible providers)
+
+- **Dependencies** (`requirements.txt`):
+  - Added `anthropic`
+  - Added `openai`
+
+- **Tests** (`tests/test_editing_stream.py`):
+  - 7 unit tests for `is_configured()` and `get_provider()` with env var mocking (all passing)
+  - 5 integration tests for `POST /editing/stream` (SSE headers, JSON chunk validation, error cases) using mocked `editing_service.stream_edit`
+  - All 12 tests passing (unit tests run without Flask dependencies)
+  - Tests use real skill names (`edit-video-blog`) to match bundled skills
+
+### Architecture decisions
+- **Gemini handles video understanding. Anthropic/OpenAI handle text editing.** These are INTENTIONALLY separate services with different roles. Gemini is for video Q&A and initial transcript generation. Editing service refines text drafts.
+- Used `stream_with_context()` to keep Flask request context alive during SSE streaming
+- SSE format: `data: <json>\n\n` (required double newline)
+- Frontend buffers incomplete SSE lines (handles chunked TCP packets)
+- "Apply to draft" creates a draft version snapshot (via existing `update_draft()`)
+
+### API Contract for Hudson
+**Endpoint:** `POST /editing/stream`
+
+**Request:**
+```json
+{
+  "draft_id": 123,
+  "skill_name": "edit-video-blog",
+  "transcript_override": "optional transcript",
+  "messages": []  // reserved for multi-turn, not used yet
+}
+```
+
+**Response:** `Content-Type: text/event-stream`
+```
+data: {"delta": "Hello", "done": false}
+
+data: {"delta": " world", "done": false}
+
+data: {"done": true}
+
+```
+
+**Error responses:**
+- 400 `{"error": "draft_id and skill_name required"}` — missing required fields
+- 404 — draft not found or skill not found
+- 503 `{"error": "Editing service not configured. Set EDITING_API_KEY."}` — no API key
+
+### Patterns/gotchas
+- SSE chunks MUST end with `\n\n` (two newlines) per spec
+- Frontend splits on `\n` and keeps incomplete line in buffer (handles TCP packet boundaries)
+- `stream_edit()` is a generator — use `yield from` in Flask route
+- Anthropic SDK: `client.messages.stream()` context manager, iterate `stream.text_stream`
+- OpenAI SDK: `client.chat.completions.create(stream=True)`, iterate chunks, extract `delta.content`
+- Both SDKs auto-chunk responses — no need for manual token buffering
+- `EDITING_BASE_URL` enables compatibility with OpenRouter, Azure OpenAI, local LLMs, etc.
+
+### Test strategy
+- Unit tests use `monkeypatch` to control env vars, import `editing_service` after patching
+- Integration tests mock `editing_service.stream_edit` to return pre-baked SSE chunks (avoids real API calls)
+- Tests verify SSE headers (`text/event-stream`), JSON chunk validity, final `done: true` chunk
+- Skills tests use real bundled skills (`edit-video-blog`, `text-editor`) — ensures integration contracts stay valid
+

@@ -10,10 +10,11 @@ Routes:
   GET  /editing/skill/<name>       — Get skill prompt body (200/404)
 """
 
-from flask import Blueprint, request, jsonify, render_template, abort
+from flask import Blueprint, request, jsonify, render_template, abort, Response, stream_with_context
 
 import db_service
 import skills_service
+import editing_service
 
 editing_bp = Blueprint("editing", __name__)
 
@@ -88,3 +89,48 @@ def get_skill(skill_name):
         abort(404)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+
+
+@editing_bp.route("/editing/stream", methods=["POST"])
+def stream_edit():
+    """
+    Stream AI-edited content via SSE.
+    
+    Request body:
+      {
+        "draft_id": int,
+        "skill_name": str,
+        "transcript_override": str (optional),
+        "messages": list (optional, reserved for multi-turn)
+      }
+    
+    Response: text/event-stream with JSON chunks:
+      data: {"delta": "...", "done": false}
+      data: {"done": true}
+    """
+    data = request.get_json()
+    draft_id = data.get('draft_id')
+    skill_name = data.get('skill_name')
+    transcript_override = data.get('transcript_override')
+
+    if not draft_id or not skill_name:
+        return jsonify({'error': 'draft_id and skill_name required'}), 400
+
+    draft = db_service.get_draft(draft_id)
+    if not draft:
+        abort(404)
+
+    if not editing_service.is_configured():
+        return jsonify({'error': 'Editing service not configured. Set EDITING_API_KEY.'}), 503
+
+    try:
+        system_prompt = skills_service.get_skill_prompt(skill_name)
+    except FileNotFoundError:
+        return jsonify({'error': f'Skill not found: {skill_name}'}), 404
+
+    transcript = transcript_override or draft.get('transcript')
+
+    def generate():
+        yield from editing_service.stream_edit(system_prompt, draft['content'], transcript)
+
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
