@@ -155,3 +155,33 @@ def test_get_editor_with_unknown_draft_id_returns_404(client):
     """GET /editor?draft_id=<nonexistent> returns 404."""
     resp = client.get("/editor?draft_id=99999")
     assert resp.status_code == 404
+
+
+# ── GET /editing/skills ───────────────────────────────────────────────────────
+
+def test_get_editing_skills_returns_list(client):
+    """GET /editing/skills returns a JSON list of available skills."""
+    resp = client.get("/editing/skills")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert isinstance(data, list)
+    # Should have bundled skills
+    skill_names = [s["name"] for s in data]
+    assert "edit-video-blog" in skill_names or "text-editor" in skill_names
+
+
+# ── GET /editing/skill/<name> ─────────────────────────────────────────────────
+
+def test_get_editing_skill_returns_prompt(client):
+    """GET /editing/skill/<name> returns the skill prompt body."""
+    resp = client.get("/editing/skill/edit-video-blog")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "prompt" in data
+    assert len(data["prompt"]) > 0
+
+
+def test_get_editing_skill_nonexistent_returns_404(client):
+    """GET /editing/skill/<name> for non-existent skill returns 404."""
+    resp = client.get("/editing/skill/nonexistent-skill")
+    assert resp.status_code == 404

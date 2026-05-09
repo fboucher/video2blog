@@ -6,11 +6,14 @@ Routes:
   GET  /editing/drafts/<draft_id>  — Fetch a draft (200/404)
   PUT  /editing/drafts/<draft_id>  — Update draft content (200)
   GET  /editor                     — Render editor page (200/400/404)
+  GET  /editing/skills             — List available skills (200)
+  GET  /editing/skill/<name>       — Get skill prompt body (200/404)
 """
 
 from flask import Blueprint, request, jsonify, render_template, abort
 
 import db_service
+import skills_service
 
 editing_bp = Blueprint("editing", __name__)
 
@@ -66,3 +69,22 @@ def editor():
         abort(404)
 
     return render_template("editor.html", draft=draft)
+
+
+@editing_bp.route("/editing/skills", methods=["GET"])
+def list_skills():
+    """Return list of available skills."""
+    skills = skills_service.list_skills()
+    return jsonify(skills)
+
+
+@editing_bp.route("/editing/skill/<skill_name>", methods=["GET"])
+def get_skill(skill_name):
+    """Return the prompt body for a specific skill."""
+    try:
+        prompt = skills_service.get_skill_prompt(skill_name)
+        return jsonify({"prompt": prompt})
+    except FileNotFoundError:
+        abort(404)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
