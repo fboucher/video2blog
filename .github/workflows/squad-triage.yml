@@ -110,11 +110,9 @@ jobs:
               return;
             }
 
-            function slugify(t) { return t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
-
             // Build triage context
             const memberList = members.map(m =>
-              `- **${m.name}** (${m.role}) → label: \`squad:${slugify(m.name)}\``
+              `- **${m.name}** (${m.role}) → label: \`squad:${m.name.toLowerCase()}\``
             ).join('\n');
 
             // Determine best assignee based on issue content and routing
@@ -191,7 +189,7 @@ jobs:
             }
 
             const isCopilot = assignedMember.name === '@copilot';
-            const assignLabel = isCopilot ? 'squad:copilot' : `squad:${slugify(assignedMember.name)}`;
+            const assignLabel = isCopilot ? 'squad:copilot' : `squad:${assignedMember.name.toLowerCase()}`;
 
             // Add the member-specific label
             await github.rest.issues.addLabels({

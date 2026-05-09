@@ -123,6 +123,21 @@
 - **Error (upload failed):** 500 `{"error": "<message>"}`
 
 ## Learnings
+
+### Bug Fix — Issue #21 Validation: URL Videos Not Appearing in `/videos/list` + Duplicate Function (2026-05-08)
+
+**Bug 1 — `list_all_videos()` only scanned filesystem:**  
+URL-based videos live only in the DB (pseudo-filename `url-<hash>`, `source_url` set, no local file). The original implementation used `os.listdir()` exclusively, so URL videos were invisible to the frontend. Fixed by:
+- Moving `import cv2` to the top of the function (cosmetic)
+- Pre-fetching all DB records via `db_service.list_all_syncs()` and building a `db_by_filename` lookup
+- Enriching local video entries with `id`, `name`, `source='local_only'`, `local_filename`, `can_select=True`, `can_delete_local=True`
+- Adding a second loop over all DB records to append URL videos (`source_url IS NOT NULL` + `local_filename LIKE 'url-%'`) with `source='url'`, `can_select=True`, `can_delete_local=False`, `gemini_cache_status='fresh'`
+- Deduplication guard: skip URL records whose `local_filename` already appears in the local-file list (handles converted videos)
+
+**Bug 2 — Duplicate `_gemini_cache_status` definition:**  
+The function was defined twice. The first definition (lines 91–107) used `GEMINI_CACHE_TTL_HOURS` before it was defined (line 144) and returned `age_hours` instead of `expires_in_hours`. The second definition (lines 147–166) was the correct one. Removed the dead first definition entirely.
+
+**Pattern confirmed:** Always query DB for URL videos — they have no filesystem presence.
 - Issue #22 established `gemini_service.py` and DB schema foundation. All subsequent issues build on it.
 - Issue #23 dropped all Reka CDN/sync logic from `/videos/list` and `/upload`. Those routes are now purely local+Gemini.
 - Removed routes: `/videos/download`, `/reka/refresh-status/<video_id>`.

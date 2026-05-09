@@ -202,10 +202,14 @@ function displayUnifiedVideoList(videos) {
             'local_only': { icon: 'folder', color: 'var(--ctp-mocha-yellow)', title: 'Local Only' },
             'url': { icon: 'language', color: 'var(--ctp-mocha-lavender)', title: 'URL Video — Q&A Ready' }
         };
+
+        // Default can_select to true when the backend omits it — only disable when explicitly false
+        const canSelect = video.can_select !== false;
+        const videoSource = video.source || 'local_only';
         
-        const sourceInfo = sourceIcons[video.source] || { icon: 'help', color: 'var(--ctp-mocha-overlay0)', title: 'Unknown Source' };
+        const sourceInfo = sourceIcons[videoSource] || { icon: 'help', color: 'var(--ctp-mocha-overlay0)', title: 'Unknown Source' };
         const statusBadge = getStatusBadge(video);
-        const urlBadge = video.source === 'url' ? `
+        const urlBadge = videoSource === 'url' ? `
             <span class="badge badge-lavender" title="URL video is Q&A-ready. Frame extraction will download the video.">
                 <span class="material-symbols-rounded">language</span>
                 URL video — Q&A ready
@@ -213,9 +217,9 @@ function displayUnifiedVideoList(videos) {
         ` : '';
         
         return `
-        <div class="unified-video-item ${!video.can_select ? 'disabled' : ''}" data-video-id="${video.id}" data-video-source="${video.source}">
+        <div class="unified-video-item ${!canSelect ? 'disabled' : ''}" data-video-id="${video.id}" data-video-source="${videoSource}">
             <div class="video-item-header">
-                <span class="sync-icon ${video.source}" title="${sourceInfo.title}">
+                <span class="sync-icon ${videoSource}" title="${sourceInfo.title}">
                     <span class="material-symbols-rounded" style="color: ${sourceInfo.color};">${sourceInfo.icon}</span>
                 </span>
                 <div class="video-name">${escapeHtml(video.name)}</div>
@@ -227,7 +231,7 @@ function displayUnifiedVideoList(videos) {
                 ${video.size ? `<span>${formatFileSize(video.size)}</span>` : ''}
             </div>
             <div class="video-item-actions">
-                ${video.can_select ? `
+                ${canSelect ? `
                     <button class="file-select-btn" onclick='selectVideo(${JSON.stringify(video).replace(/'/g, "&#39;")})'>
                         <span class="material-symbols-rounded">play_circle</span>
                         Select

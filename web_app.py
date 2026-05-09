@@ -88,25 +88,6 @@ def is_valid_url(url: str) -> bool:
     return url_pattern.match(url) is not None
 
 
-def _gemini_cache_status(gemini_info: dict | None) -> dict:
-    """Return cache status dict for a Gemini file info record."""
-    if not gemini_info or not gemini_info.get("uri"):
-        return {"gemini_cache_status": "not_uploaded"}
-    uploaded_at_str = gemini_info.get("uploaded_at")
-    if not uploaded_at_str:
-        return {"gemini_cache_status": "not_uploaded"}
-    try:
-        uploaded_at = datetime.fromisoformat(uploaded_at_str)
-        if uploaded_at.tzinfo is None:
-            uploaded_at = uploaded_at.replace(tzinfo=timezone.utc)
-        age_hours = (datetime.now(timezone.utc) - uploaded_at).total_seconds() / 3600
-        if age_hours < GEMINI_CACHE_TTL_HOURS:
-            return {"gemini_cache_status": "fresh", "age_hours": round(age_hours, 2)}
-        return {"gemini_cache_status": "expired", "age_hours": round(age_hours, 2)}
-    except (ValueError, TypeError):
-        return {"gemini_cache_status": "not_uploaded"}
-
-
 def _resolve_gemini_uri(filename: str, filepath: str | None = None) -> tuple[str, str]:
     """Return (gemini_uri, cache_status), uploading from disk only when needed.
 
@@ -168,13 +149,22 @@ def _gemini_cache_status(gemini_info: dict) -> dict:
 
 @app.route('/videos/list')
 def list_all_videos():
-    """List all locally-stored videos with Gemini file cache status.
+    """List all videos (local files + URL-based) with Gemini cache status.
 
     Returns:
-        JSON with video list; each entry includes gemini_cache_status
-        (fresh | expired | not_uploaded) and, when fresh, expires_in_hours.
+        JSON with video list; each entry includes id, name, source,
+        local_filename, gemini_cache_status, can_select, can_delete_local,
+        and for fresh local videos, expires_in_hours.
     """
+    import cv2
+
+    # Build a lookup map of DB records keyed by local_filename
+    all_syncs = db_service.list_all_syncs()
+    db_by_filename = {r['local_filename']: r for r in all_syncs}
+
     videos = []
+
+    # --- Local files ---
     if os.path.exists(app.config['UPLOAD_FOLDER']):
         for filename in sorted(os.listdir(app.config['UPLOAD_FOLDER'])):
             if not allowed_file(filename):
@@ -182,7 +172,6 @@ def list_all_videos():
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file_stats = os.stat(filepath)
 
-            import cv2
             cap = cv2.VideoCapture(filepath)
             fps = duration = 0
             if cap.isOpened():
@@ -191,10 +180,15 @@ def list_all_videos():
                 duration = total_frames / fps if fps > 0 else 0
                 cap.release()
 
+            db_record = db_by_filename.get(filename, {})
             gemini_info = db_service.get_gemini_file_info(filename)
             cache = _gemini_cache_status(gemini_info)
 
             entry = {
+                'id': db_record.get('id'),
+                'name': db_record.get('video_name', filename),
+                'source': 'local_only',
+                'local_filename': filename,
                 'filename': filename,
                 'filepath': filepath,
                 'size': file_stats.st_size,
@@ -202,9 +196,38 @@ def list_all_videos():
                 'duration': duration,
                 'fps': fps,
                 'gemini_uri': gemini_info['uri'] if gemini_info else None,
+                'can_select': True,
+                'can_delete_local': True,
             }
             entry.update(cache)
             videos.append(entry)
+
+    # Track local filenames already added so URL records that were converted
+    # to local files don't appear twice.
+    local_filenames_added = {v['local_filename'] for v in videos}
+
+    # --- URL-based videos (no local file) ---
+    for record in all_syncs:
+        lf = record.get('local_filename', '')
+        if not record.get('source_url') or not lf.startswith('url-'):
+            continue
+        if lf in local_filenames_added:
+            continue
+        entry = {
+            'id': record['id'],
+            'name': record.get('video_name', lf),
+            'source': 'url',
+            'local_filename': lf,
+            'filename': lf,
+            'gemini_cache_status': 'fresh',
+            'duration': 0,
+            'size': 0,
+            'fps': 0,
+            'can_select': True,
+            'can_delete_local': False,
+            'modified': 0,
+        }
+        videos.append(entry)
 
     videos.sort(key=lambda v: -v['modified'])
     return jsonify({'videos': videos})
