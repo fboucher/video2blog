@@ -205,3 +205,95 @@ Response: { "status": "ok", "gemini_cache_status": "fresh" }
 - ✓ Spinner shows during upload, toast on success/error
 - ✓ Old Reka UI elements removed
 - ✓ Video list refreshes after successful re-upload
+
+## Issue #14 — Start Editing Button + editor.html Split-Pane
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete (PR #38)  
+**Branch:** `squad/14-editor-ui`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **"Start Editing" button** — added to every `assistant` chat message alongside "Download MD"
+   - Blue (`--ctp-mocha-blue`) to contrast with the pink "Download MD" button
+   - Calls `startEditing(videoId, videoName, content)` which POSTs to `/editing/drafts`
+   - On success, redirects to `/editor?draft_id=<id>`
+
+2. **`templates/editor.html`** — standalone split-pane editor page
+   - Left 60%: `<textarea id="draft-content">` pre-populated via `{{ draft.content }}`
+   - Right 40%: AI chat placeholder ("Coming soon" badge, `auto_fix_high` icon)
+   - Toolbar: Back link (→ `/`), video name title, Save button, "Saved" indicator
+
+3. **Auto-save** — debounced 2 s after any textarea change
+   - Only fires if content changed since last save
+   - Ctrl/Cmd+S also triggers manual save
+   - "Saved" indicator fades in for 2.5 s on success
+
+4. **CSS additions to `style.css`**
+   - `.message-actions` — flex row grouping Download MD + Start Editing
+   - `.start-editing-btn` — blue button styled like `.download-md-btn`
+
+### Technical Decisions
+
+- **Standalone HTML** (no base template) — index.html has no Jinja2 `{% extends %}` block, so editor.html replicates the Catppuccin Mocha palette inline
+- **`tojson` filter** for DRAFT_ID in script tag — safe injection of integer into JS
+- **Keyboard shortcut** Ctrl/Cmd+S added for power-user UX
+- **No external dependencies** — same vanilla JS, no React/jQuery
+
+### API Contracts Used
+
+- `POST /editing/drafts` — body: `{video_id, video_name, content}` → `{draft_id}`
+- `PUT /editing/drafts/<id>` — body: `{content}` → `{status: "ok"}`
+- `GET /editor?draft_id=<id>` — rendered by Ripley's route with `draft` context
+
+## Issue #17 — Export: Download MD + Copy to Clipboard
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete (PR #40)  
+**Branch:** `squad/17-export-buttons`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **"Download MD" button** — added to editor toolbar
+   - Exports **live textarea content** (not last-saved version) as `.md` file
+   - Uses Blob API + `URL.createObjectURL()` pattern (same as `downloadAsMarkdown` in app.js)
+   - Filename: `{video_name}_draft.md` (sanitized with regex for filesystem safety)
+   - Success toast notification: "Markdown downloaded!"
+
+2. **"Copy to clipboard" button** — added to editor toolbar
+   - Copies live textarea content using `navigator.clipboard.writeText()`
+   - Visual confirmation: button text changes to "Copied!" for 2 seconds
+   - Error handling with toast notification if clipboard API fails
+
+### CSS Styling
+
+- **`.export-btn`** — new button class styled with Catppuccin blue (`--ctp-mocha-blue`)
+- Hover state: lavender (`--ctp-mocha-lavender`) with subtle lift + shadow
+- Active state: revert transform for tactile feedback
+- Consistent sizing/spacing with existing `.save-btn` (pink)
+
+### Technical Implementation
+
+- **Button placement**: Toolbar, positioned between "Saved" indicator and "Save" button
+- **Content source**: `textarea.value` (live content, not `lastSavedContent` variable)
+- **Filename generation**: Uses Jinja2 `{{ draft.video_name | tojson }}` with fallback to `'draft'`
+- **Clipboard feedback**: Stores `originalHTML` to restore button after 2-second confirmation
+- **Error handling**: try/catch with console.error + toast for clipboard failures
+
+### Code Organization
+
+All functionality inline in `editor.html` `<script>` block:
+- `downloadMarkdown()` — 15 lines, Blob + download logic
+- `copyToClipboard()` — async, 14 lines, clipboard API + visual feedback
+- No external JS file created (keeping with existing editor.html pattern)
+
+## Learnings
+
+- The app uses Catppuccin Mocha throughout — always pull from the existing CSS vars, never hardcode hex colors.
+- `addChatMessage()` builds innerHTML as a template string; use `JSON.stringify().replace(/'/g, "&#39;")` pattern to safely embed content into `onclick` handlers.
+- Buttons within `.chat-message.assistant` need a wrapper `div.message-actions` with `display:flex; gap:8px` — the assistant bubble is already a flex column.
+- `tojson` Jinja2 filter is the safe way to pass Python values into JS `<script>` blocks.
+- For temporary button state changes (like "Copied!" feedback), store `originalHTML` and use `setTimeout()` to restore after visual confirmation period.
+- When creating export/download functions, always use `URL.revokeObjectURL()` after download to free memory.
