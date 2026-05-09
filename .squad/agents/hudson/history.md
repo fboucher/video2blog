@@ -297,3 +297,78 @@ All functionality inline in `editor.html` `<script>` block:
 - `tojson` Jinja2 filter is the safe way to pass Python values into JS `<script>` blocks.
 - For temporary button state changes (like "Copied!" feedback), store `originalHTML` and use `setTimeout()` to restore after visual confirmation period.
 - When creating export/download functions, always use `URL.revokeObjectURL()` after download to free memory.
+
+## Issue #18 — Transcript Input: Paste + File Upload
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete  
+**Branch:** `squad/18-transcript-accordion`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **Transcript accordion** — collapsible panel in right pane, above skill buttons
+   - Header: "📄 Transcript" with chevron toggle icon
+   - Closed by default (max-height: 0)
+   - Smooth CSS transition on expand/collapse (300ms ease-out)
+   - Catppuccin surface0/surface1 background with border
+
+2. **Textarea for transcript input** — `<textarea id="transcript-input">`
+   - Monospace font, 180px min-height, vertical resize enabled
+   - Placeholder instructions for paste and file formats
+   - Auto-saves on blur event via `PUT /editing/drafts/<id>` with `transcript` field
+
+3. **File upload input** — accepts `.txt`, `.srt`, `.vtt` files
+   - Custom styled label button (no visible `<input>`)
+   - Upload icon + "Upload File" text
+   - On file selection, reads file as plain text via `file.text()`
+   - Populates textarea with raw file content (no preprocessing)
+   - Shows filename next to upload button after successful load
+
+### Integration with Skills
+
+- **`applySkill()` modified** — now includes `transcript_override: transcriptInput.value.trim() || null` in POST body to `/editing/stream`
+- Backend (`editing_routes.py`) already handles `transcript_override` parameter and falls back to draft transcript
+- Skills receive transcript if provided; otherwise they function normally (transcript fully optional)
+
+### Persistence
+
+- **On page load** — if `draft.transcript` is set, pre-populates `#transcript-input` via Jinja2 `{{ draft.transcript | tojson }}`
+- **Auto-save on blur** — `transcriptInput.addEventListener('blur', ...)` → calls `saveTranscript()` → `PUT /editing/drafts/<id>` with `{content, transcript}`
+- **Manual file upload** — also triggers auto-save after reading file content
+
+### Backend Verification
+
+- ✅ `db_service.py`: `drafts` table has `transcript` column
+- ✅ `db_service.update_draft()`: accepts and persists `transcript` parameter
+- ✅ `db_service.get_draft()`: returns `transcript` field
+- ✅ `editing_routes.py PUT /editing/drafts/<id>`: accepts `transcript` from body and passes to `update_draft()`
+- ✅ `editing_routes.py POST /editing/stream`: reads `transcript_override` and uses it or falls back to draft transcript
+
+### CSS Additions
+
+All styles added inline in `editor.html`:
+- `.transcript-accordion`, `.transcript-header`, `.transcript-body` — accordion structure
+- `.transcript-toggle` with `.expanded` state — chevron rotation animation
+- `.transcript-content` — 16px padding, flex column gap
+- `#transcript-input` — monospace textarea with blue focus border
+- `.file-input-wrapper`, `.file-input-label` — styled file upload button
+- `#transcript-file` — hidden native input
+- `.file-name` — small gray text showing selected filename
+
+### Technical Decisions
+
+- **No .srt/.vtt parsing on frontend** — raw file content sent to backend; AI skill prompt handles timing metadata if needed
+- **Auto-save on blur** — saves both `content` and `transcript` in single PUT request (prevents partial saves)
+- **Accordion starts closed** — reduces visual noise; transcript is optional feature
+- **Trim before sending** — `transcriptInput.value.trim() || null` ensures empty string → null (not sent to backend)
+- **File read as text** — `file.text()` API, not FileReader callback pattern (cleaner async/await)
+
+### Code Organization
+
+All functionality inline in `editor.html`:
+- `toggleTranscript()` — accordion expand/collapse toggle
+- `saveTranscript()` — async PUT with content + transcript
+- File input change handler — reads file, populates textarea, auto-saves
+- `applySkill()` modified — adds `transcript_override` to POST body
+- Initialization block — restores saved transcript on page load

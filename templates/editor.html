@@ -84,7 +84,7 @@
 
         .back-link .material-symbols-rounded { font-size: 18px; }
 
-        .save-btn {
+        .save-btn, .undo-btn {
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -99,15 +99,24 @@
             transition: all 0.2s;
         }
 
-        .save-btn:hover {
+        .save-btn:hover, .undo-btn:hover:not(:disabled) {
             background: var(--ctp-mocha-mauve);
             transform: translateY(-1px);
             box-shadow: 0 2px 8px rgba(245, 194, 231, 0.35);
         }
 
-        .save-btn:active { transform: translateY(0); }
+        .save-btn:active, .undo-btn:active:not(:disabled) { transform: translateY(0); }
 
-        .save-btn .material-symbols-rounded { font-size: 17px; }
+        .save-btn .material-symbols-rounded, .undo-btn .material-symbols-rounded { font-size: 17px; }
+
+        .undo-btn {
+            background: var(--ctp-mocha-blue);
+        }
+
+        .undo-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
 
         .export-btn {
             display: inline-flex;
@@ -297,6 +306,99 @@
             font-size: 16px;
         }
 
+        /* ── Version history ──────────────────────────────────── */
+        .history-section {
+            border-top: 1px solid var(--ctp-mocha-surface0);
+            padding: 16px 20px;
+        }
+
+        .history-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 8px 0;
+            user-select: none;
+        }
+
+        .history-header h3 {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-text);
+        }
+
+        .history-toggle {
+            color: var(--ctp-mocha-overlay1);
+            transition: transform 0.2s;
+        }
+
+        .history-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .history-list {
+            display: none;
+            margin-top: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .history-list.visible {
+            display: block;
+        }
+
+        .version-item {
+            background: var(--ctp-mocha-surface0);
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .version-time {
+            font-size: 0.8rem;
+            color: var(--ctp-mocha-subtext0);
+        }
+
+        .version-skill {
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            background: var(--ctp-mocha-surface1);
+            color: var(--ctp-mocha-mauve);
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .restore-btn {
+            padding: 4px 10px;
+            background: var(--ctp-mocha-lavender);
+            color: var(--ctp-mocha-crust);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .restore-btn:hover {
+            background: var(--ctp-mocha-blue);
+            transform: translateY(-1px);
+        }
+
         .skill-btn {
             display: flex;
             flex-direction: column;
@@ -365,6 +467,127 @@
         .toast.success { background: var(--ctp-mocha-green);  color: var(--ctp-mocha-crust); }
         .toast.error   { background: var(--ctp-mocha-red);    color: var(--ctp-mocha-crust); }
         .toast.info    { background: var(--ctp-mocha-blue);   color: var(--ctp-mocha-crust); }
+
+        /* ── Transcript accordion ────────────────────────────────── */
+        .transcript-accordion {
+            margin-bottom: 16px;
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 8px;
+            overflow: hidden;
+            background: var(--ctp-mocha-surface0);
+        }
+
+        .transcript-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        .transcript-header:hover {
+            background: var(--ctp-mocha-surface1);
+        }
+
+        .transcript-header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-text);
+        }
+
+        .transcript-toggle {
+            font-size: 18px;
+            color: var(--ctp-mocha-subtext0);
+            transition: transform 0.2s;
+        }
+
+        .transcript-toggle.expanded {
+            transform: rotate(90deg);
+        }
+
+        .transcript-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .transcript-body.expanded {
+            max-height: 400px;
+        }
+
+        .transcript-content {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #transcript-input {
+            width: 100%;
+            min-height: 180px;
+            padding: 12px;
+            background: var(--ctp-mocha-base);
+            color: var(--ctp-mocha-text);
+            border: 1px solid var(--ctp-mocha-surface1);
+            border-radius: 6px;
+            resize: vertical;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+            outline: none;
+        }
+
+        #transcript-input:focus {
+            border-color: var(--ctp-mocha-blue);
+        }
+
+        #transcript-input::placeholder {
+            color: var(--ctp-mocha-overlay0);
+        }
+
+        .file-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .file-input-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--ctp-mocha-surface1);
+            color: var(--ctp-mocha-text);
+            border: 1px solid var(--ctp-mocha-surface2);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .file-input-label:hover {
+            background: var(--ctp-mocha-surface2);
+            border-color: var(--ctp-mocha-lavender);
+        }
+
+        .file-input-label .material-symbols-rounded {
+            font-size: 16px;
+        }
+
+        #transcript-file {
+            display: none;
+        }
+
+        .file-name {
+            font-size: 0.8rem;
+            color: var(--ctp-mocha-subtext0);
+        }
     </style>
 </head>
 <body>
@@ -397,6 +620,11 @@
             Copy to clipboard
         </button>
 
+        <button class="undo-btn" id="undo-btn" onclick="undo()" disabled>
+            <span class="material-symbols-rounded">undo</span>
+            Undo
+        </button>
+
         <button class="save-btn" id="save-btn" onclick="saveDraft()">
             <span class="material-symbols-rounded">save</span>
             Save
@@ -422,7 +650,52 @@
                 AI Skills
             </div>
             <div class="skills-container" id="skills-container">
+                
+                <!-- Transcript accordion -->
+                <div class="transcript-accordion">
+                    <div class="transcript-header" onclick="toggleTranscript()">
+                        <div class="transcript-header-left">
+                            <span class="material-symbols-rounded transcript-toggle" id="transcript-toggle">chevron_right</span>
+                            <span>📄 Transcript</span>
+                        </div>
+                    </div>
+                    <div class="transcript-body" id="transcript-body">
+                        <div class="transcript-content">
+                            <textarea 
+                                id="transcript-input" 
+                                placeholder="Paste your transcript here, or upload a file below...&#10;&#10;Supports plain text, .srt, and .vtt formats."
+                                spellcheck="false"
+                            ></textarea>
+                            <div class="file-input-wrapper">
+                                <label for="transcript-file" class="file-input-label">
+                                    <span class="material-symbols-rounded">upload_file</span>
+                                    Upload File
+                                </label>
+                                <input 
+                                    type="file" 
+                                    id="transcript-file" 
+                                    accept=".txt,.srt,.vtt"
+                                />
+                                <span class="file-name" id="file-name"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="skills-loading">Loading skills...</div>
+            </div>
+            
+            <!-- Version History Panel -->
+            <div class="history-section">
+                <div class="history-header" onclick="toggleHistory()">
+                    <h3>
+                        📋 Version History
+                    </h3>
+                    <span class="material-symbols-rounded history-toggle" id="history-toggle">chevron_right</span>
+                </div>
+                <div class="history-list" id="history-list">
+                    <div class="skills-loading">Loading versions...</div>
+                </div>
             </div>
         </div>
 
@@ -432,10 +705,70 @@
 
     <script>
         const DRAFT_ID = {{ draft.id | tojson }};
-        const textarea = document.getElementById('draft-content');
+        const textarea = document.getElementById('draft-content');\n        const transcriptInput = document.getElementById('transcript-input');
+
         const saveIndicator = document.getElementById('save-indicator');
         let autosaveTimer = null;
         let lastSavedContent = textarea.value;
+        // ── Transcript accordion ─────────────────────────────────────
+        function toggleTranscript() {
+            const body = document.getElementById('transcript-body');
+            const toggle = document.getElementById('transcript-toggle');
+            
+            body.classList.toggle('expanded');
+            toggle.classList.toggle('expanded');
+        }
+
+        // ── File upload handler ──────────────────────────────────────
+        document.getElementById('transcript-file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const fileName = document.getElementById('file-name');
+            fileName.textContent = file.name;
+            
+            try {
+                const text = await file.text();
+                transcriptInput.value = text;
+                showToast(`Loaded ${file.name}`, 'success');
+                
+                // Auto-save transcript
+                await saveTranscript();
+            } catch (err) {
+                console.error('File read failed:', err);
+                showToast(`Failed to read file: ${err.message}`, 'error');
+                fileName.textContent = '';
+            }
+        });
+
+        // ── Transcript auto-save on blur ─────────────────────────────
+        transcriptInput.addEventListener('blur', async () => {
+            await saveTranscript();
+        });
+
+        async function saveTranscript() {
+            const transcript = transcriptInput.value.trim() || null;
+            try {
+                const resp = await fetch(`/editing/drafts/${DRAFT_ID}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        content: textarea.value,
+                        transcript: transcript
+                    })
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+            } catch (err) {
+                console.error('Transcript save failed:', err);
+            }
+        }
+
+        // ── Restore transcript from draft ────────────────────────────
+        const savedTranscript = {{ draft.transcript | tojson }};
+        if (savedTranscript) {
+            transcriptInput.value = savedTranscript;
+        }
+
 
         // ── Save ────────────────────────────────────────────────────
         async function saveDraft() {
@@ -565,12 +898,15 @@
             console.log('Applying skill:', skillName);
             
             try {
+                const transcriptValue = transcriptInput.value.trim() || null;
+                
                 const response = await fetch('/editing/stream', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         draft_id: DRAFT_ID,
-                        skill_name: skillName
+                        skill_name: skillName,
+                        transcript_override: transcriptValue
                     })
                 });
 
