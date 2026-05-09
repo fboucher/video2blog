@@ -118,12 +118,12 @@ def stream_edit():
     if not draft_id or not skill_name:
         return jsonify({'error': 'draft_id and skill_name required'}), 400
 
+    if not editing_service.is_configured():
+        return jsonify({'error': 'Editing service not configured. Set EDITING_API_KEY.'}), 503
+
     draft = db_service.get_draft(draft_id)
     if not draft:
         abort(404)
-
-    if not editing_service.is_configured():
-        return jsonify({'error': 'Editing service not configured. Set EDITING_API_KEY.'}), 503
 
     # Use override if provided, otherwise fetch from skill
     if system_prompt_override:
@@ -140,3 +140,26 @@ def stream_edit():
         yield from editing_service.stream_edit(system_prompt, draft['content'], transcript)
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
+
+
+@editing_bp.route('/editing/drafts/<int:draft_id>/versions', methods=['GET'])
+def list_versions(draft_id):
+    """Return list of saved draft versions ordered by created_at descending."""
+    draft = db_service.get_draft(draft_id)
+    if not draft:
+        abort(404)
+    versions = db_service.list_draft_versions(draft_id)
+    return jsonify(versions)
+
+
+@editing_bp.route('/editing/drafts/<int:draft_id>/restore/<int:version_id>', methods=['POST'])
+def restore_version(draft_id, version_id):
+    """Restore draft to a specific version and create new version entry."""
+    draft = db_service.get_draft(draft_id)
+    if not draft:
+        abort(404)
+    try:
+        db_service.restore_draft_version(draft_id, version_id)
+    except ValueError:
+        abort(404)
+    return jsonify(db_service.get_draft(draft_id))
