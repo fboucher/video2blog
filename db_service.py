@@ -46,12 +46,12 @@ def init_db():
         ''')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_local_filename ON video_sync(local_filename)')
         conn.execute('CREATE INDEX IF NOT EXISTS idx_sync_status ON video_sync(sync_status)')
-        conn.execute('CREATE INDEX IF NOT EXISTS idx_source_url ON video_sync(source_url)')
         # Migrate existing databases that lack the source_url column
         try:
             conn.execute('ALTER TABLE video_sync ADD COLUMN source_url TEXT')
         except Exception:
             pass  # Column already exists
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_source_url ON video_sync(source_url)')
         conn.commit()
 
 

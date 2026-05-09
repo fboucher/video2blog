@@ -5,15 +5,15 @@ Shared pytest fixtures and test configuration for video2blog.
 import sys
 from unittest.mock import MagicMock
 
-# ── Mock google.generativeai before any test module imports it ──────────────
-# google-generativeai may not be installed in every environment.
+# ── Mock google.genai before any test module imports it ─────────────────────
+# google-genai may not be installed in every environment.
 # We inject a MagicMock so imports of the form
-#   import google.generativeai as genai
-# succeed in test_gemini_service.py without the real package.
+#   from google import genai
+# succeed in gemini_service.py without the real package.
 
 _mock_genai = MagicMock()
 _mock_google = MagicMock()
-_mock_google.generativeai = _mock_genai
+_mock_google.genai = _mock_genai
 
 sys.modules.setdefault("google", _mock_google)
-sys.modules.setdefault("google.generativeai", _mock_genai)
+sys.modules["google.genai"] = _mock_genai

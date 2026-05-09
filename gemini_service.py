@@ -2,13 +2,13 @@
 Google Gemini API service for video2blog.
 
 Handles video uploads, blog generation, Q&A, and file lifecycle management
-via the Google Generative AI Python client.
+via the Google GenAI Python client.
 """
 
 import os
 import time
 from typing import Optional
-import google.generativeai as genai
+from google import genai
 
 
 def is_configured() -> bool:
@@ -21,13 +21,12 @@ def get_model() -> str:
     return os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
 
 
-def _client() -> genai.GenerativeModel:
-    """Configure and return a GenerativeModel instance."""
+def _client() -> genai.Client:
+    """Return a configured Gemini Client instance."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         raise RuntimeError("GEMINI_API_KEY is not set. Cannot call Gemini API.")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel(get_model())
+    return genai.Client(api_key=api_key)
 
 
 def upload_video(local_path: str) -> str:
@@ -49,10 +48,8 @@ def upload_video(local_path: str) -> str:
     if not os.path.exists(local_path):
         raise FileNotFoundError(f"Video file not found: {local_path}")
 
-    api_key = os.environ["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-
-    uploaded = genai.upload_file(local_path, mime_type="video/mp4")
+    client = _client()
+    uploaded = client.files.upload(path=local_path)
 
     # Wait for the file to finish processing
     max_wait = 300  # seconds
@@ -60,7 +57,7 @@ def upload_video(local_path: str) -> str:
     while uploaded.state.name == "PROCESSING" and waited < max_wait:
         time.sleep(5)
         waited += 5
-        uploaded = genai.get_file(uploaded.name)
+        uploaded = client.files.get(name=uploaded.name)
 
     if uploaded.state.name != "ACTIVE":
         raise RuntimeError(
@@ -107,7 +104,7 @@ def generate_blog(file_ref: str, messages: list) -> dict:
     import json
     import re
 
-    model = _client()
+    client = _client()
 
     system_prompt = (
         "You are a professional blog writer. "
@@ -120,13 +117,13 @@ def generate_blog(file_ref: str, messages: list) -> dict:
 
     # Resolve video part reference
     if file_ref.startswith("files/"):
-        video_part = genai.get_file(file_ref.replace("files/", "", 1))
+        video_part = client.files.get(name=file_ref)
     else:
         video_part = {"file_uri": file_ref, "mime_type": "video/mp4"}
 
     history = [{"role": msg["role"], "parts": msg["parts"]} for msg in messages]
 
-    chat = model.start_chat(history=history)
+    chat = client.chats.create(model=get_model(), history=history)
     response = chat.send_message(
         [video_part, system_prompt] if not history else system_prompt
     )
@@ -166,7 +163,7 @@ def ask(file_ref: str, messages: list) -> str:
     Raises:
         RuntimeError: If GEMINI_API_KEY is not set or the API call fails.
     """
-    model = _client()
+    client = _client()
 
     if not messages:
         raise ValueError("messages must not be empty; provide at least one user turn.")
@@ -177,12 +174,12 @@ def ask(file_ref: str, messages: list) -> str:
 
     # Resolve file reference
     if file_ref.startswith("files/"):
-        file_name = file_ref.replace("files/", "", 1) if not file_ref.startswith("files/files/") else file_ref
-        video_part = genai.get_file(file_name)
+        file_name = file_ref if not file_ref.startswith("files/files/") else file_ref.replace("files/", "", 1)
+        video_part = client.files.get(name=file_name)
     else:
         video_part = {"file_uri": file_ref, "mime_type": "video/mp4"}
 
-    chat = model.start_chat(history=history)
+    chat = client.chats.create(model=get_model(), history=history)
 
     # On the first turn, include the video part alongside the question
     if not history:
@@ -243,13 +240,12 @@ def delete_file(file_uri: str) -> bool:
     if not is_configured():
         return False
 
-    api_key = os.environ["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
+    client = _client()
 
     try:
         # The Files API name is the last path segment
         file_name = file_uri.split("/")[-1]
-        genai.delete_file(f"files/{file_name}")
+        client.files.delete(name=f"files/{file_name}")
         return True
     except Exception as e:
         print(f"gemini_service.delete_file error: {e}")
