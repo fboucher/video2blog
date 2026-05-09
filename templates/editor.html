@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor — {{ draft.video_name or 'Draft' }} — Video2Blog</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <style>
+        /* Catppuccin Mocha */
+        :root {
+            --ctp-mocha-base:     #1e1e2e;
+            --ctp-mocha-mantle:   #181825;
+            --ctp-mocha-crust:    #11111b;
+            --ctp-mocha-surface0: #313244;
+            --ctp-mocha-surface1: #45475a;
+            --ctp-mocha-surface2: #585b70;
+            --ctp-mocha-overlay0: #6c7086;
+            --ctp-mocha-overlay1: #7f849c;
+            --ctp-mocha-text:     #cdd6f4;
+            --ctp-mocha-subtext0: #a6adc8;
+            --ctp-mocha-pink:     #f5c2e7;
+            --ctp-mocha-mauve:    #cba6f7;
+            --ctp-mocha-blue:     #89b4fa;
+            --ctp-mocha-lavender: #b4befe;
+            --ctp-mocha-green:    #a6e3a1;
+            --ctp-mocha-red:      #f38ba8;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, var(--ctp-mocha-mantle) 0%, var(--ctp-mocha-base) 100%);
+            color: var(--ctp-mocha-text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Toolbar ─────────────────────────────────────────────── */
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            background: var(--ctp-mocha-crust);
+            border-bottom: 1px solid var(--ctp-mocha-surface0);
+            flex-shrink: 0;
+        }
+
+        .editor-toolbar h1 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-text);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .toolbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--ctp-mocha-subtext0);
+            text-decoration: none;
+            font-size: 0.9rem;
+            padding: 6px 10px;
+            border-radius: 6px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .back-link:hover {
+            background: var(--ctp-mocha-surface0);
+            color: var(--ctp-mocha-text);
+        }
+
+        .back-link .material-symbols-rounded { font-size: 18px; }
+
+        .save-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 16px;
+            background: var(--ctp-mocha-pink);
+            color: var(--ctp-mocha-crust);
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .save-btn:hover {
+            background: var(--ctp-mocha-mauve);
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(245, 194, 231, 0.35);
+        }
+
+        .save-btn:active { transform: translateY(0); }
+
+        .save-btn .material-symbols-rounded { font-size: 17px; }
+
+        .save-indicator {
+            font-size: 0.8rem;
+            color: var(--ctp-mocha-green);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .save-indicator.visible { opacity: 1; }
+        .save-indicator .material-symbols-rounded { font-size: 15px; }
+
+        /* ── Split panes ─────────────────────────────────────────── */
+        .editor-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-pane {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .editor-pane-left {
+            flex: 0 0 60%;
+            border-right: 1px solid var(--ctp-mocha-surface0);
+        }
+
+        .editor-pane-right {
+            flex: 0 0 40%;
+        }
+
+        .pane-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--ctp-mocha-mantle);
+            border-bottom: 1px solid var(--ctp-mocha-surface0);
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-subtext0);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            flex-shrink: 0;
+        }
+
+        .pane-header .material-symbols-rounded { font-size: 16px; }
+
+        /* ── Draft textarea ──────────────────────────────────────── */
+        #draft-content {
+            flex: 1;
+            width: 100%;
+            padding: 24px;
+            background: var(--ctp-mocha-base);
+            color: var(--ctp-mocha-text);
+            border: none;
+            resize: none;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            outline: none;
+        }
+
+        #draft-content::placeholder { color: var(--ctp-mocha-overlay0); }
+
+        /* ── AI chat placeholder ─────────────────────────────────── */
+        .ai-placeholder {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 32px;
+            background: var(--ctp-mocha-mantle);
+            color: var(--ctp-mocha-overlay0);
+            text-align: center;
+        }
+
+        .ai-placeholder .material-symbols-rounded {
+            font-size: 48px;
+            color: var(--ctp-mocha-surface1);
+        }
+
+        .ai-placeholder h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--ctp-mocha-subtext0);
+        }
+
+        .ai-placeholder p {
+            font-size: 0.875rem;
+            max-width: 260px;
+            line-height: 1.6;
+        }
+
+        .coming-soon-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            background: var(--ctp-mocha-surface0);
+            color: var(--ctp-mocha-mauve);
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Toast (reuse app pattern) ───────────────────────────── */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            z-index: 9999;
+        }
+
+        .toast {
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            animation: toastIn 0.3s ease-out;
+            max-width: 280px;
+        }
+
+        @keyframes toastIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        .toast.success { background: var(--ctp-mocha-green);  color: var(--ctp-mocha-crust); }
+        .toast.error   { background: var(--ctp-mocha-red);    color: var(--ctp-mocha-crust); }
+        .toast.info    { background: var(--ctp-mocha-blue);   color: var(--ctp-mocha-crust); }
+    </style>
+</head>
+<body>
+
+    <!-- Toolbar -->
+    <div class="editor-toolbar">
+        <div class="toolbar-left">
+            <a href="/" class="back-link">
+                <span class="material-symbols-rounded">arrow_back</span>
+                Back
+            </a>
+            <h1>
+                <span class="material-symbols-rounded" style="font-size:18px;vertical-align:middle;margin-right:6px;">edit_note</span>
+                {{ draft.video_name or 'Draft' }}
+            </h1>
+        </div>
+
+        <div class="save-indicator" id="save-indicator">
+            <span class="material-symbols-rounded">check_circle</span>
+            Saved
+        </div>
+
+        <button class="save-btn" id="save-btn" onclick="saveDraft()">
+            <span class="material-symbols-rounded">save</span>
+            Save
+        </button>
+    </div>
+
+    <!-- Split panes -->
+    <div class="editor-body">
+
+        <!-- Left: draft textarea -->
+        <div class="editor-pane editor-pane-left">
+            <div class="pane-header">
+                <span class="material-symbols-rounded">article</span>
+                Draft
+            </div>
+            <textarea id="draft-content" spellcheck="true" placeholder="Your blog draft will appear here…">{{ draft.content }}</textarea>
+        </div>
+
+        <!-- Right: AI chat placeholder -->
+        <div class="editor-pane editor-pane-right">
+            <div class="pane-header">
+                <span class="material-symbols-rounded">smart_toy</span>
+                AI Assistant
+            </div>
+            <div class="ai-placeholder">
+                <span class="material-symbols-rounded">auto_fix_high</span>
+                <h3>AI Assistant</h3>
+                <p>Inline AI editing suggestions and chat will appear here.</p>
+                <span class="coming-soon-badge">Coming soon</span>
+            </div>
+        </div>
+
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        const DRAFT_ID = {{ draft.id | tojson }};
+        const textarea = document.getElementById('draft-content');
+        const saveIndicator = document.getElementById('save-indicator');
+        let autosaveTimer = null;
+        let lastSavedContent = textarea.value;
+
+        // ── Save ────────────────────────────────────────────────────
+        async function saveDraft() {
+            const content = textarea.value;
+            try {
+                const resp = await fetch(`/editing/drafts/${DRAFT_ID}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({content})
+                });
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                lastSavedContent = content;
+                flashSaved();
+            } catch (err) {
+                console.error('Save failed:', err);
+                showToast('Save failed: ' + err.message, 'error');
+            }
+        }
+
+        function flashSaved() {
+            saveIndicator.classList.add('visible');
+            setTimeout(() => saveIndicator.classList.remove('visible'), 2500);
+        }
+
+        // ── Auto-save (debounced 2 s) ────────────────────────────────
+        textarea.addEventListener('input', () => {
+            clearTimeout(autosaveTimer);
+            autosaveTimer = setTimeout(() => {
+                if (textarea.value !== lastSavedContent) saveDraft();
+            }, 2000);
+        });
+
+        // ── Keyboard shortcut ────────────────────────────────────────
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveDraft();
+            }
+        });
+
+        // ── Toast ────────────────────────────────────────────────────
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    </script>
+</body>
+</html>

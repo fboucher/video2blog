@@ -1431,6 +1431,37 @@ details.card[open] > summary {
     font-size: 16px;
 }
 
+.message-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.start-editing-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: var(--ctp-mocha-blue);
+    color: var(--ctp-mocha-crust);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.start-editing-btn:hover {
+    background: var(--ctp-mocha-lavender);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(137, 180, 250, 0.3);
+}
+
+.start-editing-btn .material-symbols-rounded {
+    font-size: 16px;
+}
+
 /* Footer */
 footer {
     text-align: center;

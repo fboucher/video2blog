@@ -848,12 +848,23 @@ function addChatMessage(role, content) {
             <div class="message-content">${formattedContent}</div>
         `;
     } else if (role === 'assistant') {
+        const escapedContent = JSON.stringify(content).replace(/'/g, "&#39;");
+        const videoId = currentVideo?.filename || '';
+        const videoName = currentVideo?.name || '';
+        const escapedVideoId = JSON.stringify(videoId).replace(/'/g, "&#39;");
+        const escapedVideoName = JSON.stringify(videoName).replace(/'/g, "&#39;");
         messageDiv.innerHTML = `
             <div class="message-content">${formattedContent}</div>
-            <button class="download-md-btn" onclick='downloadAsMarkdown(${JSON.stringify(content).replace(/'/g, "&#39;")})' title="Download as Markdown">
-                <span class="material-symbols-rounded">download</span>
-                <span>Download MD</span>
-            </button>
+            <div class="message-actions">
+                <button class="download-md-btn" onclick='downloadAsMarkdown(${escapedContent})' title="Download as Markdown">
+                    <span class="material-symbols-rounded">download</span>
+                    <span>Download MD</span>
+                </button>
+                <button class="start-editing-btn" onclick='startEditing(${escapedVideoId}, ${escapedVideoName}, ${escapedContent})' title="Open in editor">
+                    <span class="material-symbols-rounded">edit_note</span>
+                    <span>Start Editing</span>
+                </button>
+            </div>
         `;
     } else if (role === 'error') {
         messageDiv.innerHTML = `
@@ -890,6 +901,22 @@ function downloadAsMarkdown(content) {
     URL.revokeObjectURL(url);
     
     showToast('Markdown file downloaded!', 'success');
+}
+
+async function startEditing(videoId, videoName, content) {
+    try {
+        const resp = await fetch('/editing/drafts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({video_id: videoId, video_name: videoName, content: content})
+        });
+        if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+        const {draft_id} = await resp.json();
+        window.location.href = `/editor?draft_id=${draft_id}`;
+    } catch (err) {
+        console.error('Start editing failed:', err);
+        showToast('Could not open editor: ' + err.message, 'error');
+    }
 }
 
 // Frame Deletion Functions
