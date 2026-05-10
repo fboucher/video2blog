@@ -188,6 +188,12 @@ def list_all_videos():
             gemini_info = db_service.get_gemini_file_info(filename)
             cache = _gemini_cache_status(gemini_info)
 
+            frames_folder = Path(filename).stem
+            frames_dir = os.path.join(app.config['OUTPUT_FOLDER'], frames_folder)
+            has_frames = os.path.isdir(frames_dir) and any(
+                f.endswith('.jpg') for f in os.listdir(frames_dir)
+            )
+            draft_info = db_service.get_latest_draft_by_video_id(filename)
             entry = {
                 'id': db_record.get('id'),
                 'name': db_record.get('video_name', filename),
@@ -202,6 +208,10 @@ def list_all_videos():
                 'gemini_uri': gemini_info['uri'] if gemini_info else None,
                 'can_select': True,
                 'can_delete_local': True,
+                'has_draft': draft_info is not None,
+                'draft_id': draft_info['id'] if draft_info else None,
+                'has_frames': has_frames,
+                'frames_folder': frames_folder if has_frames else None,
             }
             entry.update(cache)
             videos.append(entry)
@@ -217,6 +227,7 @@ def list_all_videos():
             continue
         if lf in local_filenames_added:
             continue
+        draft_info = db_service.get_latest_draft_by_video_id(lf)
         entry = {
             'id': record['id'],
             'name': record.get('video_name', lf),
@@ -230,6 +241,10 @@ def list_all_videos():
             'can_select': True,
             'can_delete_local': True,
             'modified': 0,
+            'has_draft': draft_info is not None,
+            'draft_id': draft_info['id'] if draft_info else None,
+            'has_frames': False,
+            'frames_folder': None,
         }
         videos.append(entry)
 
@@ -642,6 +657,16 @@ def extract():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/list-frames/<path:folder>')
+def list_frames_in_folder(folder):
+    """Return sorted list of .jpg filenames in an output subfolder."""
+    folder_path = os.path.join(app.config['OUTPUT_FOLDER'], folder)
+    if not os.path.isdir(folder_path):
+        return jsonify({'frames': []})
+    frames = sorted(f for f in os.listdir(folder_path) if f.endswith('.jpg'))
+    return jsonify({'frames': frames})
 
 
 @app.route('/frames/<path:filename>')

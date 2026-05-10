@@ -312,6 +312,24 @@ def get_draft(draft_id: int) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def get_latest_draft_by_video_id(video_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Return the most recently updated draft for a video, or None.
+
+    Args:
+        video_id: The video identifier (local_filename or URL key).
+
+    Returns:
+        Row dict with at minimum 'id', or None if no draft exists.
+    """
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT id FROM drafts WHERE video_id = ? ORDER BY updated_at DESC LIMIT 1',
+            (video_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
 def update_draft(
     draft_id: int,
     content: str,

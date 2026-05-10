@@ -242,6 +242,17 @@ function displayUnifiedVideoList(videos) {
                         Select
                     </button>
                 `}
+                ${video.has_draft ? `
+                    <button class="file-action-btn" onclick="window.location.href='/editor?draft_id=${video.draft_id}'" title="Open existing draft in editor">
+                        <span class="material-symbols-rounded">edit_note</span>
+                        Edit
+                    </button>
+                ` : `
+                    <button class="file-action-btn" disabled title="Generate a blog post first, then edit it here">
+                        <span class="material-symbols-rounded">edit_note</span>
+                        Edit
+                    </button>
+                `}
                 ${(video.gemini_cache_status === 'expired' || video.gemini_cache_status === 'not_uploaded') ? `
                     <button class="file-action-btn upload-gemini-btn" onclick='uploadToGemini(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Upload to Gemini cache">
                         <span class="material-symbols-rounded">cloud_upload</span>
@@ -318,7 +329,19 @@ async function selectVideo(video) {
             </div>
             ` : ''}
         </div>
+        ${video.has_frames ? `
+        <div class="existing-frames-section">
+            <h4><span class="material-symbols-rounded">photo_library</span> Previously Extracted Frames</h4>
+            <div class="existing-frames-grid" id="existing-frames-${escapeHtml(video.frames_folder)}">
+                <div class="loading-files">Loading frames...</div>
+            </div>
+        </div>
+        ` : ''}
     `;
+
+    if (video.has_frames) {
+        loadExistingFrames(video.frames_folder);
+    }
     
     // Collapse Step 1 and show chat section for Q&A and extraction section
     document.getElementById('upload-section').removeAttribute('open');
@@ -372,6 +395,30 @@ async function selectVideo(video) {
     
     chatInput.value = DEFAULT_QUESTION;
     chatInput.focus();
+}
+
+async function loadExistingFrames(framesFolder) {
+    const container = document.getElementById(`existing-frames-${framesFolder}`);
+    if (!container) return;
+    try {
+        const resp = await fetch(`/list-frames/${framesFolder}`);
+        const data = await resp.json();
+        const frames = data.frames || [];
+        if (frames.length === 0) {
+            container.innerHTML = '<p class="no-frames">No frames found.</p>';
+            return;
+        }
+        container.innerHTML = frames.slice(0, 20).map(frame => `
+            <div class="frame-thumbnail">
+                <img src="/frames/${framesFolder}/${frame}" alt="${frame}" loading="lazy">
+            </div>
+        `).join('');
+        if (frames.length > 20) {
+            container.innerHTML += `<p class="frames-more">Showing 20 of ${frames.length} frames.</p>`;
+        }
+    } catch (err) {
+        container.innerHTML = '<p class="no-frames">Could not load frames.</p>';
+    }
 }
 
 async function deleteLocal(filename) {

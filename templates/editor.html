@@ -1322,6 +1322,73 @@
             }
         }
 
+        /* ── Version history ──────────────────────────────────── */
+        let historyLoaded = false;
+
+        function toggleHistory() {
+            const list = document.getElementById('history-list');
+            const toggle = document.getElementById('history-toggle');
+            const isVisible = list.classList.contains('visible');
+            if (isVisible) {
+                list.classList.remove('visible');
+                toggle.classList.remove('expanded');
+            } else {
+                list.classList.add('visible');
+                toggle.classList.add('expanded');
+                if (!historyLoaded) {
+                    loadVersions();
+                }
+            }
+        }
+
+        async function loadVersions() {
+            const list = document.getElementById('history-list');
+            list.innerHTML = '<div class="skills-loading">Loading versions...</div>';
+            try {
+                const resp = await fetch(`/editing/drafts/${DRAFT_ID}/versions`);
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const versions = await resp.json();
+                historyLoaded = true;
+                if (!versions || versions.length === 0) {
+                    list.innerHTML = '<div class="skills-loading">No versions saved yet. Edits are saved automatically.</div>';
+                    return;
+                }
+                list.innerHTML = versions.map(v => {
+                    const date = new Date(v.created_at);
+                    const timeStr = date.toLocaleString(undefined, {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                    const skillBadge = v.skill_used
+                        ? `<span class="version-skill">${v.skill_used}</span>`
+                        : '<span class="version-skill">manual</span>';
+                    return `
+                    <div class="version-item">
+                        <div class="version-header">
+                            <span class="version-time">${timeStr}</span>
+                            ${skillBadge}
+                            <button class="restore-btn" onclick="restoreVersion(${v.id})">Restore</button>
+                        </div>
+                    </div>`;
+                }).join('');
+            } catch (err) {
+                list.innerHTML = `<div class="skills-loading">Failed to load versions: ${err.message}</div>`;
+            }
+        }
+
+        async function restoreVersion(versionId) {
+            if (!confirm('Restore this version? Your current draft will be saved as a new version first.')) return;
+            try {
+                const resp = await fetch(`/editing/drafts/${DRAFT_ID}/restore/${versionId}`, {method: 'POST'});
+                if (!resp.ok) throw new Error(`Server returned ${resp.status}`);
+                const data = await resp.json();
+                textarea.value = data.content;
+                lastSavedContent = data.content;
+                showToast('Version restored!', 'success');
+                historyLoaded = false;
+                loadVersions();
+            } catch (err) {
+                showToast(`Restore failed: ${err.message}`, 'error');
+            }
+        }
+
         // Load skills on page load
         loadSkills();
     </script>
