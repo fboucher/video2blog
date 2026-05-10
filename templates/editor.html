@@ -837,7 +837,8 @@
 
     <script>
         const DRAFT_ID = {{ draft.id | tojson }};
-        const textarea = document.getElementById('draft-content');\n        const transcriptInput = document.getElementById('transcript-input');
+        const textarea = document.getElementById('draft-content');
+        const transcriptInput = document.getElementById('transcript-input');
 
         const saveIndicator = document.getElementById('save-indicator');
         let autosaveTimer = null;
