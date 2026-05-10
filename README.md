@@ -37,7 +37,7 @@ Create a `.env` file with the following variables:
 | `GEMINI_MODEL` | Yes | Gemini model to use | `gemini-3.1-flash-lite` |
 | `EDITING_PROVIDER` | Yes | AI provider for editing: `anthropic` or `openai` | `anthropic` |
 | `EDITING_API_KEY` | Yes | API key for the editing provider | — |
-| `EDITING_MODEL` | No | Model for editing. Defaults: `claude-3-haiku-20240307` (Anthropic) or `gpt-4o-mini` (OpenAI) | — |
+| `EDITING_MODEL` | No | Model for editing. Defaults: `claude-sonnet-4-6` (Anthropic) or `gpt-4o-mini` (OpenAI) | — |
 | `EDITING_BASE_URL` | No | Custom OpenAI-compatible endpoint (optional) | — |
 | `SKILLS_FOLDER` | No | Path to skills folder | `./skills` |
 
@@ -47,7 +47,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.1-flash-lite
 EDITING_PROVIDER=anthropic
 EDITING_API_KEY=your_anthropic_api_key_here
-EDITING_MODEL=claude-3-haiku-20240307
+EDITING_MODEL=claude-sonnet-4-6
 SKILLS_FOLDER=./skills
 ```
 
@@ -119,6 +119,12 @@ Two example skills are included:
 2. Add a `SKILL.md` file with your YAML front matter and prompt
 3. The skill is loaded automatically; no restart required
 4. The `skills/` folder is mounted as a Docker volume, so you can add skills without rebuilding
+
+## Contributing
+
+Contributions are welcome! Whether it's a bug fix, a new feature, or a custom skill — see [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+💬 Prefer chatting? Join the community on [Discord](https://discord.gg/6zA3jKw).
 
 ## Resources
 
