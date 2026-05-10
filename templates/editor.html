@@ -1110,7 +1110,7 @@
                 
                 // Interpolate parameters
                 for (const [key, value] of Object.entries(params)) {
-                    prompt = prompt.replaceAll(`{{${key}}}`, value);
+                    prompt = prompt.replaceAll('{{' + key + '}}', value);
                 }
                 
                 // If mode specified, prepend mode to prompt
