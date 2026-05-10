@@ -25,8 +25,12 @@ COPY keyframe_extractor.py .
 COPY web_app.py .
 COPY gemini_service.py .
 COPY db_service.py .
+COPY editing_routes.py .
+COPY editing_service.py .
+COPY skills_service.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
+COPY skills/ ./skills/
 
 # Create directories for uploads, output, and database
 RUN mkdir -p /app/uploads /app/output /app/data
