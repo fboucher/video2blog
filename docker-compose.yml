@@ -11,6 +11,7 @@ services:
       - ./uploads:/app/uploads
       - ./output:/app/output
       - ./data:/app/data
+      - ./skills:/app/skills
     env_file:
       - .env
     environment:

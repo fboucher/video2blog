@@ -251,3 +251,202 @@ Fix: Added `_build_history()` helper that converts each message dict into `types
 - `send_message(message)` validates via `_is_part_type()` against `PartUnion = Union[str, File, Part]` — dicts are rejected at runtime even though `PartUnionDict` is in the type annotation
 - `FileState` is `CaseInSensitiveEnum(str, enum.Enum)` — both `.name` and `.value` equal `'PROCESSING'`/`'ACTIVE'` so existing state checks are correct
 - History must contain `types.Content` objects (or dicts with proper `PartDict` parts, not plain strings)
+
+---
+
+### Issue #13 — DB Layer: Drafts & Version Schema (2026-05-09)
+
+**Branch:** `squad/13-db-drafts-schema` → PR #36 → target `feat/issue-12-ai-editing`
+
+**Schema decisions:**
+- `drafts` table stores current content + optional transcript. `video_id` is a string key (local_filename or URL pseudo-filename) matching `video_sync`.
+- `draft_versions` stores every content snapshot with `skill_used TEXT` (NULL = manual edit, `'restore'` = version restore, any string = AI skill label).
+- Foreign key `draft_id REFERENCES drafts(id) ON DELETE CASCADE` enforces referential integrity.
+
+**Function signatures established:**
+```python
+create_draft(video_id: str, video_name: str, content: str) -> int
+get_draft(draft_id: int) -> dict | None
+update_draft(draft_id: int, content: str, transcript: str | None = None, skill_used: str | None = None) -> None
+list_draft_versions(draft_id: int) -> list[dict]
+restore_draft_version(draft_id: int, version_id: int) -> None  # raises ValueError on bad version_id
+```
+
+**Patterns/gotchas:**
+- `update_draft()` signature extends the spec with an optional `skill_used` param so callers (AI skills) don't need a separate path.
+- `list_draft_versions()` orders by `id DESC` (not `created_at DESC`) — SQLite timestamps have 1-second resolution, which causes ties on fast consecutive inserts.
+- `restore_draft_version()` raises `ValueError` (not silent) when `version_id` doesn't belong to `draft_id`. Protects against cross-draft corruption.
+- Tests use same `mem_db` fixture pattern as `test_db_service.py` (patch `db_service.get_db` + `os.makedirs`, call `init_db()`).
+
+---
+
+## Issue #15 — Skills Discovery Service + Skill Buttons (2025-05-09)
+
+**Branch:** `squad/15-skills-service` → PR #41 → target `feat/issue-12-ai-editing`
+
+### What was built
+- **`skills_service.py`** — core module for skill discovery:
+  - `list_skills(skills_folder=None)` scans `SKILLS_FOLDER` env var (default `./skills`)
+  - Parses YAML front matter (`name`, `description`) from `SKILL.md` files
+  - Skips malformed files without crashing (logs warnings)
+  - `get_skill_prompt(skill_name, skills_folder=None)` returns prompt body with front matter stripped
+  - Raises `FileNotFoundError` for missing skills, `ValueError` for malformed front matter
+  
+- **Bundled skills:**
+  - `skills/edit-video-blog/SKILL.md` — refine video-to-blog drafts for clarity, flow, SEO
+  - `skills/text-editor/SKILL.md` — general-purpose copy editing and proofreading
+  
+- **API routes** (extended `editing_routes.py`):
+  - `GET /editing/skills` — returns JSON list `[{name, description}, ...]`
+  - `GET /editing/skill/<name>` — returns `{prompt: "..."}` or 404
+  
+- **Editor UI** (`templates/editor.html`):
+  - Right pane changed from placeholder to skill buttons container
+  - Fetches `/editing/skills` on page load, renders one button per skill
+  - Clicking a skill shows toast (AI wiring deferred to #16)
+  - CSS styles for skill buttons with hover effects
+  
+- **Infrastructure:**
+  - `docker-compose.yml` — added `./skills:/app/skills` volume mount
+  - `.env.example` — documented `SKILLS_FOLDER` configuration
+  - Tests: `tests/test_skills_service.py` (9 tests) + integration tests in `test_editing_routes.py`
+
+### Implementation details
+- Simple front matter parser using regex (no YAML library dependency)
+- Parsing pattern: `^---\n(.*?\n)---\n(.*)$` with manual key:value extraction
+- Skills folder structure: `<skills_folder>/<skill-name>/SKILL.md`
+- Malformed files (missing name/description, no front matter, etc.) are skipped with warnings
+
+### Test coverage
+- Valid/multiple skills, empty folder, missing front matter, missing required fields
+- Ignores non-directory entries, handles nonexistent folder
+- `get_skill_prompt()` returns body, raises errors for missing/malformed skills
+- Integration tests for API routes (200, 404 cases)
+- Fixed pre-existing test syntax error in `test_gemini_service.py` (unrelated to #15)
+
+### Patterns/gotchas
+- Skills are discovered dynamically — no static registration
+- `skills_folder` param on all functions enables testing with tempdir
+- Front matter is simple key:value pairs (not full YAML objects/arrays)
+- UI fetches skills on page load (no caching, no hot reload)
+
+## Issue #14 — Flask Editing Blueprint (2026-05-09)
+
+**Branch:** `squad/14-editor-routes` → PR #39 → target `feat/issue-12-ai-editing`
+
+### What was built
+- Created `editing_routes.py` as a Flask Blueprint (`editing_bp`) with 4 routes:
+  - `POST /editing/drafts` → 201 + `{draft_id}`
+  - `GET /editing/drafts/<draft_id>` → 200 draft dict / 404
+  - `PUT /editing/drafts/<draft_id>` → 200 `{status: ok}` / 400 if content missing
+  - `GET /editor?draft_id=<id>` → renders `editor.html` / 400 if no param / 404 if not found
+- Registered `editing_bp` in `web_app.py` via `app.register_blueprint(editing_bp)`
+- Integration tests: 8 pass, 1 skip (template test pending Hudson's `editor.html`)
+
+### conftest.py patterns for Flask route tests
+When importing `web_app` in tests outside Docker, three mocks are needed:
+1. `cv2` — not installed in linuxbrew Python env; `sys.modules.setdefault("cv2", MagicMock())`
+2. `numpy` — same; `sys.modules.setdefault("numpy", MagicMock())`
+3. `pathlib.Path.mkdir` — web_app.py creates `/app/uploads` at module level; wrap to swallow `PermissionError`/`FileNotFoundError`
+
+All three mocks live in `tests/conftest.py` at module level so they're in place before the first `from web_app import app` call in any fixture.
+
+### Pattern confirmed
+- Blueprint registration: `app.register_blueprint(bp)` placed immediately after `db_service.init_db()` in web_app.py — keeps the registration site obvious.
+- Hudson's `squad/14-editor-ui` branch already has `editor.html`; template test will pass once that PR merges into the base branch.
+
+---
+
+## Issue #16 — AI Streaming via editing_service + Apply to Draft (2026-05-09)
+
+**Branch:** `squad/16-editing-service` → PR #XX → target `feat/issue-12-ai-editing`
+
+### What was built
+- **`editing_service.py`** — AI text editing service module:
+  - `is_configured()` → returns True when `EDITING_API_KEY` is set
+  - `get_provider()` → returns `"anthropic"` (default) or `"openai"` based on `EDITING_PROVIDER` env var (normalized to lowercase)
+  - `stream_edit(system_prompt, draft, transcript, messages)` → generator yielding SSE-formatted JSON chunks `{"delta": "...", "done": false}` with final chunk `{"done": true}`
+  - Routes to Anthropic SDK (streaming messages) or OpenAI SDK (chat completions with stream=True)
+  - Supports `EDITING_BASE_URL` for OpenAI-compatible providers
+
+- **`POST /editing/stream` route** (`editing_routes.py`):
+  - Accepts `{draft_id, skill_name, transcript_override, messages}` (messages reserved for future multi-turn)
+  - Returns 400 if draft_id/skill_name missing, 404 if draft/skill not found, 503 if editing service not configured
+  - Streams SSE response with `Content-Type: text/event-stream` using `stream_with_context()`
+  - Fetches draft, skill prompt, transcript; passes to `editing_service.stream_edit()`
+
+- **Frontend streaming UI** (`templates/editor.html`):
+  - Skill buttons now POST to `/editing/stream` when clicked
+  - Streams response into `.ai-bubble` element in right pane using `ReadableStream` + `TextDecoder`
+  - Parses SSE chunks line-by-line: `data: {...}\n\n`
+  - Accumulates text as it arrives, appends to bubble
+  - On `done: true`, adds "Apply to draft" button to bubble
+  - "Apply to draft" replaces left-pane textarea content + PUTs to `/editing/drafts/<id>` to persist
+  - Shows success toast on apply
+
+- **Configuration** (`.env.example`):
+  - Added `EDITING_PROVIDER` (default: anthropic)
+  - `EDITING_API_KEY` (required)
+  - `EDITING_MODEL` (defaults: claude-sonnet-4-6 for Anthropic, gpt-4o-mini for OpenAI)
+  - `EDITING_BASE_URL` (optional, for OpenAI-compatible providers)
+
+- **Dependencies** (`requirements.txt`):
+  - Added `anthropic`
+  - Added `openai`
+
+- **Tests** (`tests/test_editing_stream.py`):
+  - 7 unit tests for `is_configured()` and `get_provider()` with env var mocking (all passing)
+  - 5 integration tests for `POST /editing/stream` (SSE headers, JSON chunk validation, error cases) using mocked `editing_service.stream_edit`
+  - All 12 tests passing (unit tests run without Flask dependencies)
+  - Tests use real skill names (`edit-video-blog`) to match bundled skills
+
+### Architecture decisions
+- **Gemini handles video understanding. Anthropic/OpenAI handle text editing.** These are INTENTIONALLY separate services with different roles. Gemini is for video Q&A and initial transcript generation. Editing service refines text drafts.
+- Used `stream_with_context()` to keep Flask request context alive during SSE streaming
+- SSE format: `data: <json>\n\n` (required double newline)
+- Frontend buffers incomplete SSE lines (handles chunked TCP packets)
+- "Apply to draft" creates a draft version snapshot (via existing `update_draft()`)
+
+### API Contract for Hudson
+**Endpoint:** `POST /editing/stream`
+
+**Request:**
+```json
+{
+  "draft_id": 123,
+  "skill_name": "edit-video-blog",
+  "transcript_override": "optional transcript",
+  "messages": []  // reserved for multi-turn, not used yet
+}
+```
+
+**Response:** `Content-Type: text/event-stream`
+```
+data: {"delta": "Hello", "done": false}
+
+data: {"delta": " world", "done": false}
+
+data: {"done": true}
+
+```
+
+**Error responses:**
+- 400 `{"error": "draft_id and skill_name required"}` — missing required fields
+- 404 — draft not found or skill not found
+- 503 `{"error": "Editing service not configured. Set EDITING_API_KEY."}` — no API key
+
+### Patterns/gotchas
+- SSE chunks MUST end with `\n\n` (two newlines) per spec
+- Frontend splits on `\n` and keeps incomplete line in buffer (handles TCP packet boundaries)
+- `stream_edit()` is a generator — use `yield from` in Flask route
+- Anthropic SDK: `client.messages.stream()` context manager, iterate `stream.text_stream`
+- OpenAI SDK: `client.chat.completions.create(stream=True)`, iterate chunks, extract `delta.content`
+- Both SDKs auto-chunk responses — no need for manual token buffering
+- `EDITING_BASE_URL` enables compatibility with OpenRouter, Azure OpenAI, local LLMs, etc.
+
+### Test strategy
+- Unit tests use `monkeypatch` to control env vars, import `editing_service` after patching
+- Integration tests mock `editing_service.stream_edit` to return pre-baked SSE chunks (avoids real API calls)
+- Tests verify SSE headers (`text/event-stream`), JSON chunk validity, final `done: true` chunk
+- Skills tests use real bundled skills (`edit-video-blog`, `text-editor`) — ensures integration contracts stay valid
+

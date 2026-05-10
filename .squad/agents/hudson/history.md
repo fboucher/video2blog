@@ -205,3 +205,266 @@ Response: { "status": "ok", "gemini_cache_status": "fresh" }
 - ✓ Spinner shows during upload, toast on success/error
 - ✓ Old Reka UI elements removed
 - ✓ Video list refreshes after successful re-upload
+
+## Issue #14 — Start Editing Button + editor.html Split-Pane
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete (PR #38)  
+**Branch:** `squad/14-editor-ui`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **"Start Editing" button** — added to every `assistant` chat message alongside "Download MD"
+   - Blue (`--ctp-mocha-blue`) to contrast with the pink "Download MD" button
+   - Calls `startEditing(videoId, videoName, content)` which POSTs to `/editing/drafts`
+   - On success, redirects to `/editor?draft_id=<id>`
+
+2. **`templates/editor.html`** — standalone split-pane editor page
+   - Left 60%: `<textarea id="draft-content">` pre-populated via `{{ draft.content }}`
+   - Right 40%: AI chat placeholder ("Coming soon" badge, `auto_fix_high` icon)
+   - Toolbar: Back link (→ `/`), video name title, Save button, "Saved" indicator
+
+3. **Auto-save** — debounced 2 s after any textarea change
+   - Only fires if content changed since last save
+   - Ctrl/Cmd+S also triggers manual save
+   - "Saved" indicator fades in for 2.5 s on success
+
+4. **CSS additions to `style.css`**
+   - `.message-actions` — flex row grouping Download MD + Start Editing
+   - `.start-editing-btn` — blue button styled like `.download-md-btn`
+
+### Technical Decisions
+
+- **Standalone HTML** (no base template) — index.html has no Jinja2 `{% extends %}` block, so editor.html replicates the Catppuccin Mocha palette inline
+- **`tojson` filter** for DRAFT_ID in script tag — safe injection of integer into JS
+- **Keyboard shortcut** Ctrl/Cmd+S added for power-user UX
+- **No external dependencies** — same vanilla JS, no React/jQuery
+
+### API Contracts Used
+
+- `POST /editing/drafts` — body: `{video_id, video_name, content}` → `{draft_id}`
+- `PUT /editing/drafts/<id>` — body: `{content}` → `{status: "ok"}`
+- `GET /editor?draft_id=<id>` — rendered by Ripley's route with `draft` context
+
+## Issue #17 — Export: Download MD + Copy to Clipboard
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete (PR #40)  
+**Branch:** `squad/17-export-buttons`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **"Download MD" button** — added to editor toolbar
+   - Exports **live textarea content** (not last-saved version) as `.md` file
+   - Uses Blob API + `URL.createObjectURL()` pattern (same as `downloadAsMarkdown` in app.js)
+   - Filename: `{video_name}_draft.md` (sanitized with regex for filesystem safety)
+   - Success toast notification: "Markdown downloaded!"
+
+2. **"Copy to clipboard" button** — added to editor toolbar
+   - Copies live textarea content using `navigator.clipboard.writeText()`
+   - Visual confirmation: button text changes to "Copied!" for 2 seconds
+   - Error handling with toast notification if clipboard API fails
+
+### CSS Styling
+
+- **`.export-btn`** — new button class styled with Catppuccin blue (`--ctp-mocha-blue`)
+- Hover state: lavender (`--ctp-mocha-lavender`) with subtle lift + shadow
+- Active state: revert transform for tactile feedback
+- Consistent sizing/spacing with existing `.save-btn` (pink)
+
+### Technical Implementation
+
+- **Button placement**: Toolbar, positioned between "Saved" indicator and "Save" button
+- **Content source**: `textarea.value` (live content, not `lastSavedContent` variable)
+- **Filename generation**: Uses Jinja2 `{{ draft.video_name | tojson }}` with fallback to `'draft'`
+- **Clipboard feedback**: Stores `originalHTML` to restore button after 2-second confirmation
+- **Error handling**: try/catch with console.error + toast for clipboard failures
+
+### Code Organization
+
+All functionality inline in `editor.html` `<script>` block:
+- `downloadMarkdown()` — 15 lines, Blob + download logic
+- `copyToClipboard()` — async, 14 lines, clipboard API + visual feedback
+- No external JS file created (keeping with existing editor.html pattern)
+
+## Learnings
+
+- The app uses Catppuccin Mocha throughout — always pull from the existing CSS vars, never hardcode hex colors.
+- `addChatMessage()` builds innerHTML as a template string; use `JSON.stringify().replace(/'/g, "&#39;")` pattern to safely embed content into `onclick` handlers.
+- Buttons within `.chat-message.assistant` need a wrapper `div.message-actions` with `display:flex; gap:8px` — the assistant bubble is already a flex column.
+- `tojson` Jinja2 filter is the safe way to pass Python values into JS `<script>` blocks.
+- For temporary button state changes (like "Copied!" feedback), store `originalHTML` and use `setTimeout()` to restore after visual confirmation period.
+- When creating export/download functions, always use `URL.revokeObjectURL()` after download to free memory.
+- **Sticky controls pattern:** Use `flex-shrink: 0` with `max-height` and `overflow-y: auto` for fixed-position panels that can scroll internally if content exceeds max height. Prevents long control panels from pushing scrollable content off-screen.
+- **Removing placeholder elements:** Always check for `.querySelector('.placeholder-class')` and call `.remove()` before appending dynamic content to avoid stale UI artifacts.
+- **Ctrl+Enter shortcut:** Wire `keydown` event on textarea to check `(e.ctrlKey || e.metaKey) && e.key === 'Enter'` for cross-platform submit behavior.
+
+## Editor UX Improvements — Custom Prompt + Sticky Controls
+
+**Date:** 2025-05-10  
+**Branch:** `feat/issue-12-ai-editing`  
+**Status:** ✅ Complete
+
+### Problem
+
+Frank reported excessive scrolling in the editor:
+- Skill buttons + version history were in a long scrolling list
+- After AI responses appeared, had to scroll back to top to click another skill
+- No way to ask free-form questions to AI
+
+### Solution
+
+**1. Restructured right pane into two sections:**
+- **Sticky controls panel** (`.skills-panel`) — `max-height: 45vh`, `overflow-y: auto`
+  - Contains: transcript accordion, skill buttons, custom prompt input, version history
+  - Stays at top of pane, scrolls internally if needed
+- **Scrollable output area** (`#ai-output-area`) — `flex: 1`, `overflow-y: auto`
+  - AI response bubbles append here
+  - Empty state placeholder when no responses yet
+
+**2. Added custom prompt section:**
+- Free-form textarea for any AI question/instruction
+- "Send" button with lavender/blue styling
+- Ctrl+Enter keyboard shortcut for power users
+- Sends to `/editing/stream` with `system_prompt_override` (skill_name: 'custom')
+- Clears textarea after sending
+
+### Technical Implementation
+
+**CSS changes:**
+- `.skills-panel` — new container with `flex-shrink: 0`, `max-height: 45vh`, `overflow-y: auto`
+- `#ai-output-area` — new output container with `flex: 1`, `overflow-y: auto`
+- `.custom-prompt-section` — new section with textarea + send button
+- `.ai-output-empty` — placeholder state when no AI responses yet
+
+**JavaScript changes:**
+- `runSkillWithPrompt()` — now appends to `#ai-output-area` instead of `#skills-container`
+- `applySkill()` — same output area change
+- `sendCustomPrompt()` — new function, calls `runSkillWithPrompt()` with custom text
+- Both functions remove `.ai-output-empty` placeholder before appending first bubble
+
+**HTML changes:**
+- Wrapped transcript + skills + custom prompt + history in `.skills-panel`
+- Added `#ai-output-area` div below the panel
+- Custom prompt section between skills and history
+
+### User Impact
+
+- **Less scrolling:** Controls always visible at top, output area scrolls independently
+- **More flexibility:** Custom prompt allows any question without pre-defined skill
+- **Better organization:** Clear separation between controls (sticky) and output (scrollable)
+
+### Testing
+
+- ✅ All 66 tests passing
+- ✅ No regressions in existing functionality
+- ✅ Skills load correctly in sticky panel
+- ✅ AI bubbles append to output area correctly
+- ✅ Scroll behavior works as expected
+
+## Issue #18 — Transcript Input: Paste + File Upload
+
+**Date:** 2026-05-09  
+**Status:** ✅ Complete  
+**Branch:** `squad/18-transcript-accordion`  
+**Base:** `feat/issue-12-ai-editing`
+
+### UI Components Built
+
+1. **Transcript accordion** — collapsible panel in right pane, above skill buttons
+   - Header: "📄 Transcript" with chevron toggle icon
+   - Closed by default (max-height: 0)
+   - Smooth CSS transition on expand/collapse (300ms ease-out)
+   - Catppuccin surface0/surface1 background with border
+
+2. **Textarea for transcript input** — `<textarea id="transcript-input">`
+   - Monospace font, 180px min-height, vertical resize enabled
+   - Placeholder instructions for paste and file formats
+   - Auto-saves on blur event via `PUT /editing/drafts/<id>` with `transcript` field
+
+3. **File upload input** — accepts `.txt`, `.srt`, `.vtt` files
+   - Custom styled label button (no visible `<input>`)
+   - Upload icon + "Upload File" text
+   - On file selection, reads file as plain text via `file.text()`
+   - Populates textarea with raw file content (no preprocessing)
+   - Shows filename next to upload button after successful load
+
+### Integration with Skills
+
+- **`applySkill()` modified** — now includes `transcript_override: transcriptInput.value.trim() || null` in POST body to `/editing/stream`
+- Backend (`editing_routes.py`) already handles `transcript_override` parameter and falls back to draft transcript
+- Skills receive transcript if provided; otherwise they function normally (transcript fully optional)
+
+### Persistence
+
+- **On page load** — if `draft.transcript` is set, pre-populates `#transcript-input` via Jinja2 `{{ draft.transcript | tojson }}`
+- **Auto-save on blur** — `transcriptInput.addEventListener('blur', ...)` → calls `saveTranscript()` → `PUT /editing/drafts/<id>` with `{content, transcript}`
+- **Manual file upload** — also triggers auto-save after reading file content
+
+### Backend Verification
+
+- ✅ `db_service.py`: `drafts` table has `transcript` column
+- ✅ `db_service.update_draft()`: accepts and persists `transcript` parameter
+- ✅ `db_service.get_draft()`: returns `transcript` field
+- ✅ `editing_routes.py PUT /editing/drafts/<id>`: accepts `transcript` from body and passes to `update_draft()`
+- ✅ `editing_routes.py POST /editing/stream`: reads `transcript_override` and uses it or falls back to draft transcript
+
+### CSS Additions
+
+All styles added inline in `editor.html`:
+- `.transcript-accordion`, `.transcript-header`, `.transcript-body` — accordion structure
+- `.transcript-toggle` with `.expanded` state — chevron rotation animation
+- `.transcript-content` — 16px padding, flex column gap
+- `#transcript-input` — monospace textarea with blue focus border
+- `.file-input-wrapper`, `.file-input-label` — styled file upload button
+- `#transcript-file` — hidden native input
+- `.file-name` — small gray text showing selected filename
+
+### Technical Decisions
+
+- **No .srt/.vtt parsing on frontend** — raw file content sent to backend; AI skill prompt handles timing metadata if needed
+- **Auto-save on blur** — saves both `content` and `transcript` in single PUT request (prevents partial saves)
+- **Accordion starts closed** — reduces visual noise; transcript is optional feature
+- **Trim before sending** — `transcriptInput.value.trim() || null` ensures empty string → null (not sent to backend)
+- **File read as text** — `file.text()` API, not FileReader callback pattern (cleaner async/await)
+
+### Code Organization
+
+All functionality inline in `editor.html`:
+- `toggleTranscript()` — accordion expand/collapse toggle
+- `saveTranscript()` — async PUT with content + transcript
+- File input change handler — reads file, populates textarea, auto-saves
+- `applySkill()` modified — adds `transcript_override` to POST body
+- Initialization block — restores saved transcript on page load
+
+## 2025-05-10 — Issue #19: Parameterized Skill Modal
+
+**Branch**: `squad/19-skill-modal`  
+**PR**: #45  
+**Base**: `feat/issue-12-ai-editing`
+
+### Implementation
+- Updated `skills/text-editor/SKILL.md` with 5 modes (Full Edit, Quick Pass, Rewrite Section with parameters, Tone Check, Headline Workshop)
+- Enhanced `skills_service.py` to parse YAML properly using pyyaml, return modes/parameters in `list_skills()`, added `get_skill_data()` function
+- Updated `editing_routes.py` to return full skill data from `/editing/skill/<name>` and accept `system_prompt_override` in `/editing/stream`
+- Rewrote skill rendering in `templates/editor.html`:
+  - Skills with modes render as skill cards with sub-buttons
+  - Skills with parameters trigger a `<dialog>` modal
+  - Modal collects input, interpolates into prompt, sends to stream with override
+  - Added Catppuccin Mocha-themed CSS for modal and skill cards
+- Added `pyyaml>=6.0` to `requirements.txt`
+
+### Git Persistence Fix
+Encountered WSL file persistence issue — edits via `edit` tool were lost after branch switch. Solution: used bash heredocs to write files directly, ensuring disk persistence before committing.
+
+### Testing
+Manual UI flow testing completed:
+- ✅ text-editor renders 5 sub-buttons
+- ✅ "Rewrite Section" opens modal with input field
+- ✅ Modal interpolates parameters into prompt
+- ✅ Cancel button closes modal without API call
+- ✅ Non-parameterized modes run directly
+
+Automated pytest blocked by Python environment issues in WSL (missing venv packages).
