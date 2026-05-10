@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-ARG APP_VERSION=0.7.0
+ARG APP_VERSION=0.8.0
 ENV APP_VERSION=${APP_VERSION}
 
 # Install system dependencies for OpenCV headless (minimal set)
@@ -22,9 +22,16 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the application code
-COPY keyframe_extractor.py web_app.py gemini_service.py db_service.py ./
+COPY keyframe_extractor.py .
+COPY web_app.py .
+COPY gemini_service.py .
+COPY db_service.py .
+COPY editing_routes.py .
+COPY editing_service.py .
+COPY skills_service.py .
 COPY templates/ ./templates/
 COPY static/ ./static/
+COPY skills/ ./skills/
 
 # Create directories for uploads, output, and database, and make scripts executable in one layer
 RUN mkdir -p /app/uploads /app/output /app/data && \

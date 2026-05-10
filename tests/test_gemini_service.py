@@ -48,7 +48,7 @@ def test_is_configured_true_when_api_key_set():
 def test_get_model_returns_default():
     env = {k: v for k, v in os.environ.items() if k != "GEMINI_MODEL"}
     with patch.dict(os.environ, env, clear=True):
-        assert gemini_service.get_model() == "gemini-3.1-flash-lite
+        assert gemini_service.get_model() == "gemini-2.0-flash"
 
 
 def test_get_model_respects_env_override():

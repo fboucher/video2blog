@@ -313,3 +313,222 @@ Corrected to:
 
 - Fresh DB initialization now succeeds
 - Test coverage: 14/14 passing
+### 2026-05-09: Pre-flight — Issue #12 AI Editing Phase
+
+**By:** Liz (Lead)  
+**Status:** APPROVED TO START
+
+---
+
+## Reka References Found and Fixed
+
+| Issue | What Changed |
+|-------|--------------|
+| #12 | "Reka API" → "Gemini API" (2 occurrences in problem statement and solution); "Reka draft message" → "Gemini draft message" (user story 1); "reka_video_id" → "gemini file URI" (database schema note) |
+| #14 | "Wire the existing **Reka** chat" → "Wire the existing **Gemini** chat"; "on each **Reka** draft message" → "on each **Gemini** draft message" |
+| #13 | ✅ No Reka references |
+| #15 | ✅ No Reka references |
+| #16 | ✅ No Reka references (correctly uses Anthropic/OpenAI for editing service — NOT Gemini) |
+| #17 | ✅ No Reka references |
+| #18 | ✅ No Reka references |
+| #19 | ✅ No Reka references |
+| #20 | ✅ No Reka references |
+
+---
+
+## Architecture Note: Dual-Service Design
+
+**The editing_service uses Anthropic/OpenAI — this is CORRECT and should NOT be changed to Gemini.**
+
+Rationale:
+- **Gemini** handles video understanding (upload, Q&A, blog generation from video) — it has native multimodal video capabilities
+- **editing_service** handles text refinement (the "editorial polish" phase) — this is pure text-in/text-out, best served by Claude or GPT models via Anthropic/OpenAI SDKs
+- This is a deliberate dual-provider architecture: Gemini for video, Claude/OpenAI for text editing
+
+---
+
+## Current Codebase Touchpoints for #14
+
+### Where the "Start Editing" button needs to hook in
+
+**File:** `static/js/app.js`  
+**Function:** `addChatMessage(role, content)` (line 835)
+
+Currently, assistant messages render with a "Download MD" button:
+```javascript
+} else if (role === 'assistant') {
+    messageDiv.innerHTML = `
+        <div class="message-content">${formattedContent}</div>
+        <button class="download-md-btn" onclick='downloadAsMarkdown(...)'>
+            <span class="material-symbols-rounded">download</span>
+            <span>Download MD</span>
+        </button>
+    `;
+}
+```
+
+**Implementation approach:** Add a second button adjacent to "Download MD":
+```javascript
+<button class="start-editing-btn" onclick='startEditing(...)'>
+    <span class="material-symbols-rounded">edit_note</span>
+    <span>Start Editing</span>
+</button>
+```
+
+### Route that generates Gemini chat response
+
+**File:** `web_app.py`  
+**Route:** `POST /gemini/ask` (called from `sendChatMessage()` in app.js at line 780)  
+**Returns:** `{ answer: string, gemini_cache_status: string }`
+
+### Message object shape in app.js
+
+The `chatMessages` array stores objects as:
+```javascript
+{ role: 'user' | 'assistant', content: string }
+```
+
+The `content` field contains the raw markdown blog draft from Gemini. This is what the "Start Editing" button should POST to `/editing/drafts`.
+
+### Video context available
+
+`currentVideo` global object contains:
+- `currentVideo.filename` — local filename or pseudo-filename for URL videos
+- `currentVideo.name` — display name
+- `currentVideo.source` — 'local_only' or 'url'
+
+This provides the `video_id` and `video_name` fields needed for the draft creation.
+
+---
+
+## Work Order: Dependency Chain
+
+```
+#13 (DB layer)
+    ↓
+#14 (Start Editing button + editor skeleton)
+    ↓
+#15 (Skills discovery) ─────────────────┐
+    ↓                                    │
+#16 (AI streaming + Apply) ←────────────┤
+    ↓                                    │
+#17 (Export: Download/Copy) [parallel]   │
+#18 (Transcript input) [after #16]       │
+#19 (Parameterized modal) [after #15,#16]
+#20 (Undo + history) [after #16]
+```
+
+### Execution order
+
+1. **#13** — Ripley implements DB schema. Can start immediately.
+2. **#14** — Hudson/Ripley collaborate on routes + UI. Blocked by #13.
+3. **#15** — Ripley implements skills_service. Can start after #14 routes exist.
+4. **#16** — Ripley implements editing_service + streaming. Blocked by #14, #15.
+5. **#17, #18, #19, #20** — These can proceed in parallel once their blockers complete.
+
+### Parallel opportunities
+
+- Once #13 is done: #14 can start
+- Once #14 is done: #15 and #17 can run in parallel
+- Once #15 and #16 are done: #18, #19, #20 can all run in parallel
+
+---
+
+## Scope Concerns and Risks
+
+### Low Risk
+1. **Skills discovery** — straightforward file scanning with YAML parsing. Well-scoped.
+2. **Export buttons** — reuses existing `downloadAsMarkdown` pattern. Minimal new code.
+3. **DB schema** — simple two-table design with clear FK relationship.
+
+### Medium Risk
+1. **SSE streaming** — Flask's `stream_with_context` requires careful handling. Test with both providers.
+2. **Provider detection** — Must gracefully handle missing API keys without crashing the app.
+
+### Potential Scope Creep (Watch Out)
+1. **text-editor sub-buttons (#19)** — The "modes" dropdown/sub-buttons could expand scope. Recommend: implement as a simple modal first, defer fancy UI.
+2. **Transcript file parsing** — `.srt` and `.vtt` have timing metadata. Clarify: do we strip timings or preserve them? Recommend: strip timings, return plain text.
+
+### Architecture Recommendation
+- Create `editing_routes.py` as a separate Blueprint rather than adding to `web_app.py` — keeps concerns separated and `web_app.py` from growing larger.
+
+---
+
+## Checklist Before Team Starts
+
+- [x] Feature branch `feat/issue-12-ai-editing` exists and is pushed
+- [x] All issues (#12–#20) reviewed for stale Reka references
+- [x] Issues #12 and #14 updated with Gemini terminology
+- [x] Codebase confirms Gemini migration complete (no Reka imports in web_app.py, gemini_service.py is sole video provider)
+- [x] Current chat message rendering location identified (`addChatMessage` at line 835 in app.js)
+- [x] Dual-service architecture confirmed correct (Gemini for video, Anthropic/OpenAI for editing)
+
+---
+
+**Go/No-Go:** ✅ **GO** — All issues are ready. Team can begin implementation.
+
+---
+
+## 2026-05-10: Dead Code Cleanup Audit — feat/issue-12-ai-editing
+
+**Date:** 2026-05-10  
+**By:** Liz (Lead/Architect)  
+**Status:** COMPLETED
+
+### Context
+
+Frank requested a comprehensive audit and cleanup of unused files, folders, and dead code before finalizing the AI editing feature branch.
+
+### Findings and Actions
+
+**✅ DELETED:**
+
+1. **`=1.0.0`** — Pip error artifact (externally-managed-environment error text). Not referenced anywhere in codebase.
+
+2. **`.skills/` directory** — Duplicate of `skills/` directory. The app uses `skills_service.py` which defaults to `./skills` (not `.skills`). Contents were byte-for-byte identical. Not tracked by git.
+
+**✅ KEPT (Verified as Active):**
+
+3. **Templates** — Both `templates/index.html` and `templates/editor.html` are actively rendered via `web_app.py` and `editing_routes.py`.
+
+4. **Python Functions** — All functions in `keyframe_extractor.py`, `gemini_service.py`, `editing_service.py`, and `editing_routes.py` are actively used.
+
+5. **Reka References** — Only exist in migration code (`db_service.py` for schema migration detection) and tests (`test_db_service.py` for validation). No active Reka imports or API calls.
+
+6. **data/ folder** — Contains runtime `video_sync.db`. Already properly gitignored via `.gitignore` entries: `data/` and `*.db`.
+
+7. **assets/ folder** — Contains screenshots referenced in README.md.
+
+8. **CSS/JS** — No Reka-prefixed classes or stale modal code found.
+
+### Test Validation
+
+**Before cleanup:** 66 passed, 1 skipped, 18 warnings in 1.91s  
+**After cleanup:** 66 passed, 1 skipped, 18 warnings in 1.16s  
+**Result:** ✅ No regressions.
+
+### Changes Committed
+
+**Commit:** `1d9415d` — "chore: remove dead code - =1.0.0 pip artifact and .skills/ duplicate"
+
+**Files changed:**
+- Deleted: `=1.0.0`
+- Deleted: `.skills/` (entire directory tree)
+- Modified: `Dockerfile` (APP_VERSION bump from 0.5.1-preview to 0.8.0)
+
+**Branch:** Pushed to `origin/feat/issue-12-ai-editing`
+
+### Architectural Notes
+
+1. **Dual-Service Design Confirmed** — Gemini handles video understanding, Anthropic/OpenAI handles text editing. This is correct and intentional.
+
+2. **Migration Code is Expected** — `db_service.py` contains Reka schema detection for backward compatibility. This is proper migration hygiene, not dead code.
+
+3. **Skills Discovery** — `skills_service.py` scans `./skills` (not `.skills`). Currently two skills: `edit-video-blog` and `text-editor`.
+
+### Risk Assessment
+
+**Overall Risk:** MINIMAL — Deletions were non-code artifacts and duplicate directories. No functional code removed. All tests pass. No breaking changes to public APIs or routes.
+
+**Confidence:** HIGH — Surgical cleanup with zero impact on application behavior.
+

@@ -112,3 +112,63 @@
 - `genai.configure` must be mocked alongside `genai.upload_file`/`delete_file`
 - `generate_blog` / `ask` use `model.start_chat().send_message()` not `generate_content()`
 - `get_gemini_file_info` returns `{"uri": ..., "uploaded_at": ...}` (not raw column names)
+
+---
+
+### 2026-05-09 — Issue #12 Editing Phase: Anticipatory Test Scaffolding (#13–#16)
+
+**Task:** Write proactive test scaffolding for the entire editing phase so the team has tests ready as each implementation lands.
+**Branch:** `squad/bishop-editing-test-scaffolding` → PR targeting `feat/issue-12-ai-editing`
+**Landing:** Tests absorbed into feature branch via PR #36 (squash merge with Ripley's #13 work)
+
+**Files Created:**
+
+| File | Issue | Tests | Status |
+|------|-------|-------|--------|
+| `tests/test_editing_db.py` | #13 | 15 tests | Skipped — Ripley already created it on `squad/13-db-drafts-schema` |
+| `tests/test_editing_routes.py` | #14 | 9 tests | Created — all `@pytest.mark.skip` |
+| `tests/test_skills_service.py` | #15 | 9 tests | Created — all `@pytest.mark.skip` |
+| `tests/test_editing_stream.py` | #16 | 12 tests | Created — all `@pytest.mark.skip` |
+
+**Tests Written (30 total — all skipped until implementations land):**
+
+| File | Test | AC Criterion |
+|------|------|--------------|
+| test_editing_routes | test_post_editing_drafts_returns_201 | POST /editing/drafts returns 201 + draft_id |
+| test_editing_routes | test_post_editing_drafts_missing_fields_returns_400 | Missing fields → 400 |
+| test_editing_routes | test_get_editing_draft_returns_draft_dict | GET /editing/drafts/<id> returns draft dict |
+| test_editing_routes | test_get_editing_draft_unknown_id_returns_404 | Unknown id → 404 |
+| test_editing_routes | test_put_editing_draft_updates_content | PUT updates content |
+| test_editing_routes | test_put_editing_draft_creates_version | PUT creates draft_versions entry |
+| test_editing_routes | test_get_editor_renders_template | GET /editor?draft_id= renders editor.html |
+| test_editing_routes | test_get_editor_without_draft_id_returns_400 | Missing draft_id → 400 |
+| test_editing_routes | test_get_editor_with_unknown_draft_id_returns_404 | Unknown draft_id → 404 |
+| test_skills_service | test_list_skills_returns_list_of_dicts | list_skills() with valid SKILL.md |
+| test_skills_service | test_list_skills_multiple_skills | Multiple skills discovered |
+| test_skills_service | test_list_skills_skips_malformed_files_without_crashing | Malformed YAML skipped |
+| test_skills_service | test_list_skills_skips_files_without_front_matter | No front matter → skipped |
+| test_skills_service | test_list_skills_empty_folder_returns_empty_list | Empty folder → [] |
+| test_skills_service | test_list_skills_uses_env_var_default | SKILLS_FOLDER env var used |
+| test_skills_service | test_get_skill_prompt_returns_body_without_front_matter | Front matter stripped |
+| test_skills_service | test_get_skill_prompt_returns_none_for_unknown_skill | Unknown skill → None |
+| test_skills_service | test_get_skill_prompt_body_is_stripped | Body is stripped |
+| test_editing_stream | test_is_configured_false_when_no_api_key | No EDITING_API_KEY → False |
+| test_editing_stream | test_is_configured_true_when_api_key_set | Key set → True |
+| test_editing_stream | test_is_configured_false_when_api_key_empty_string | Empty key → False |
+| test_editing_stream | test_get_provider_returns_anthropic_by_default | Default provider = anthropic |
+| test_editing_stream | test_get_provider_returns_anthropic_when_set | EDITING_PROVIDER=anthropic |
+| test_editing_stream | test_get_provider_returns_openai_when_set | EDITING_PROVIDER=openai |
+| test_editing_stream | test_get_provider_normalizes_to_lowercase | Uppercase env var normalized |
+| test_editing_stream | test_post_editing_stream_returns_sse_content_type | Content-Type: text/event-stream |
+| test_editing_stream | test_post_editing_stream_yields_valid_json_chunks | Chunks are valid JSON |
+| test_editing_stream | test_post_editing_stream_ends_with_done_true | Final chunk has done:true |
+| test_editing_stream | test_post_editing_stream_requires_draft_id | Missing draft_id → 400 |
+| test_editing_stream | test_post_editing_stream_returns_503_when_not_configured | No key → 503 |
+
+**Key Patterns Reinforced:**
+- All pending implementation tests use `@pytest.mark.skip(reason="Pending #N implementation")` — safe for CI
+- Flask test client fixture (`client`) chains from `mem_db` fixture for full in-memory integration testing
+- SSE streaming tests use `patch("editing_service.stream_edit", ...)` with controlled byte chunks
+- `monkeypatch.setenv/delenv` for env var isolation — no os.environ mutation leaks between tests
+- `skills_service` tests use `tmp_path` pytest fixture for isolated temp directories
+- Skip check before creating file: if `test_editing_db.py` exists → don't overwrite Ripley's work
