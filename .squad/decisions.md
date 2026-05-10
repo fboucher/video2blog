@@ -467,3 +467,68 @@ This provides the `video_id` and `video_name` fields needed for the draft creati
 
 **Go/No-Go:** ✅ **GO** — All issues are ready. Team can begin implementation.
 
+---
+
+## 2026-05-10: Dead Code Cleanup Audit — feat/issue-12-ai-editing
+
+**Date:** 2026-05-10  
+**By:** Liz (Lead/Architect)  
+**Status:** COMPLETED
+
+### Context
+
+Frank requested a comprehensive audit and cleanup of unused files, folders, and dead code before finalizing the AI editing feature branch.
+
+### Findings and Actions
+
+**✅ DELETED:**
+
+1. **`=1.0.0`** — Pip error artifact (externally-managed-environment error text). Not referenced anywhere in codebase.
+
+2. **`.skills/` directory** — Duplicate of `skills/` directory. The app uses `skills_service.py` which defaults to `./skills` (not `.skills`). Contents were byte-for-byte identical. Not tracked by git.
+
+**✅ KEPT (Verified as Active):**
+
+3. **Templates** — Both `templates/index.html` and `templates/editor.html` are actively rendered via `web_app.py` and `editing_routes.py`.
+
+4. **Python Functions** — All functions in `keyframe_extractor.py`, `gemini_service.py`, `editing_service.py`, and `editing_routes.py` are actively used.
+
+5. **Reka References** — Only exist in migration code (`db_service.py` for schema migration detection) and tests (`test_db_service.py` for validation). No active Reka imports or API calls.
+
+6. **data/ folder** — Contains runtime `video_sync.db`. Already properly gitignored via `.gitignore` entries: `data/` and `*.db`.
+
+7. **assets/ folder** — Contains screenshots referenced in README.md.
+
+8. **CSS/JS** — No Reka-prefixed classes or stale modal code found.
+
+### Test Validation
+
+**Before cleanup:** 66 passed, 1 skipped, 18 warnings in 1.91s  
+**After cleanup:** 66 passed, 1 skipped, 18 warnings in 1.16s  
+**Result:** ✅ No regressions.
+
+### Changes Committed
+
+**Commit:** `1d9415d` — "chore: remove dead code - =1.0.0 pip artifact and .skills/ duplicate"
+
+**Files changed:**
+- Deleted: `=1.0.0`
+- Deleted: `.skills/` (entire directory tree)
+- Modified: `Dockerfile` (APP_VERSION bump from 0.5.1-preview to 0.8.0)
+
+**Branch:** Pushed to `origin/feat/issue-12-ai-editing`
+
+### Architectural Notes
+
+1. **Dual-Service Design Confirmed** — Gemini handles video understanding, Anthropic/OpenAI handles text editing. This is correct and intentional.
+
+2. **Migration Code is Expected** — `db_service.py` contains Reka schema detection for backward compatibility. This is proper migration hygiene, not dead code.
+
+3. **Skills Discovery** — `skills_service.py` scans `./skills` (not `.skills`). Currently two skills: `edit-video-blog` and `text-editor`.
+
+### Risk Assessment
+
+**Overall Risk:** MINIMAL — Deletions were non-code artifacts and duplicate directories. No functional code removed. All tests pass. No breaking changes to public APIs or routes.
+
+**Confidence:** HIGH — Surgical cleanup with zero impact on application behavior.
+

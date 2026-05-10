@@ -24,3 +24,29 @@
 - Bishop: Tester/QA — owns test coverage
 
 ## Learnings
+
+### 2026-05-10: Dead Code Audit — feat/issue-12-ai-editing
+
+**Context:** Frank requested cleanup of unused files, folders, and dead code before finalizing the AI editing feature branch.
+
+**Findings and Actions:**
+
+1. **Deleted `=1.0.0`** — Pip error artifact (externally-managed-environment error text) that was somehow tracked. Not used anywhere.
+
+2. **Deleted `.skills/` directory** — Duplicate of `skills/` directory. The app uses `skills_service.py` which defaults to `./skills` (not `.skills`). Both directories contained identical `edit-video-blog/` and `text-editor/` subdirectories with matching SKILL.md files.
+
+3. **No dead templates** — Both `templates/index.html` and `templates/editor.html` are actively rendered via `web_app.py` and `editing_routes.py`.
+
+4. **No dead Python code** — All functions in `keyframe_extractor.py`, `gemini_service.py`, `editing_service.py`, and `editing_routes.py` are actively used.
+
+5. **Reka references** — Only exist in migration code (`db_service.py` line 32-34 for schema migration detection) and tests (`test_db_service.py` for schema validation). No active Reka imports or API calls.
+
+6. **data/ folder** — Contains runtime `video_sync.db`. Already properly gitignored via `.gitignore` entries: `data/` and `*.db`.
+
+7. **assets/ folder** — Contains screenshots referenced in README.md. Kept as documented.
+
+8. **No dead CSS/JS** — No obvious Reka-prefixed classes or stale modal code found. CSS is clean for Catppuccin Mocha theme.
+
+**Test Results:** 66 passed, 1 skipped — no regressions.
+
+**Commit:** `1d9415d` - "chore: remove dead code - =1.0.0 pip artifact and .skills/ duplicate"
