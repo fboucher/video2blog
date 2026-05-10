@@ -1,6 +1,6 @@
 FROM python:3.11-slim
 
-ARG APP_VERSION=0.5.1-preview
+ARG APP_VERSION=0.8.0
 ENV APP_VERSION=${APP_VERSION}
 
 # Install system dependencies for OpenCV
