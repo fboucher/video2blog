@@ -1,0 +1,44 @@
+# Git
+.git/
+.gitignore
+
+# Squad (AI team artifacts)
+.squad/
+
+# Node
+node_modules/
+package-lock.json
+package.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Assets and documentation
+assets/
+README.md
+LICENSE
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Environment and runtime (mounted at runtime)
+.env
+uploads/
+output/
+data/
