@@ -1,7 +1,7 @@
 
 # Video 2 Blog
 
-[![Build and Push Docker Image](https://github.com/fboucher/video2blog/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/fboucher/video2blog/actions/workflows/docker-build.yml) ![GitHub License](https://img.shields.io/github/license/fboucher/video2blog) [![Powered by Gemini](https://img.shields.io/badge/Powered%20by-Google%20Gemini-blue)](https://ai.google.dev/)
+[![Build and Push Docker Image](https://github.com/fboucher/video2blog/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/fboucher/video2blog/actions/workflows/docker-build.yml) ![GitHub License](https://img.shields.io/github/license/fboucher/video2blog) ![Vision AI · Gemini](https://img.shields.io/badge/Vision%20AI-Gemini-blue?logo=google) ![OpenAI API Compatible](https://img.shields.io/badge/OpenAI%20API-Compatible-412991?logo=openai)
 
 A web application that transforms videos into blog posts using AI. Upload or link a video, generate a draft with Gemini AI, refine it in the **AI Blog Editor** with AI-powered skills, and extract keyframes to illustrate your post.
 
