@@ -297,6 +297,72 @@ All functionality inline in `editor.html` `<script>` block:
 - `tojson` Jinja2 filter is the safe way to pass Python values into JS `<script>` blocks.
 - For temporary button state changes (like "Copied!" feedback), store `originalHTML` and use `setTimeout()` to restore after visual confirmation period.
 - When creating export/download functions, always use `URL.revokeObjectURL()` after download to free memory.
+- **Sticky controls pattern:** Use `flex-shrink: 0` with `max-height` and `overflow-y: auto` for fixed-position panels that can scroll internally if content exceeds max height. Prevents long control panels from pushing scrollable content off-screen.
+- **Removing placeholder elements:** Always check for `.querySelector('.placeholder-class')` and call `.remove()` before appending dynamic content to avoid stale UI artifacts.
+- **Ctrl+Enter shortcut:** Wire `keydown` event on textarea to check `(e.ctrlKey || e.metaKey) && e.key === 'Enter'` for cross-platform submit behavior.
+
+## Editor UX Improvements — Custom Prompt + Sticky Controls
+
+**Date:** 2025-05-10  
+**Branch:** `feat/issue-12-ai-editing`  
+**Status:** ✅ Complete
+
+### Problem
+
+Frank reported excessive scrolling in the editor:
+- Skill buttons + version history were in a long scrolling list
+- After AI responses appeared, had to scroll back to top to click another skill
+- No way to ask free-form questions to AI
+
+### Solution
+
+**1. Restructured right pane into two sections:**
+- **Sticky controls panel** (`.skills-panel`) — `max-height: 45vh`, `overflow-y: auto`
+  - Contains: transcript accordion, skill buttons, custom prompt input, version history
+  - Stays at top of pane, scrolls internally if needed
+- **Scrollable output area** (`#ai-output-area`) — `flex: 1`, `overflow-y: auto`
+  - AI response bubbles append here
+  - Empty state placeholder when no responses yet
+
+**2. Added custom prompt section:**
+- Free-form textarea for any AI question/instruction
+- "Send" button with lavender/blue styling
+- Ctrl+Enter keyboard shortcut for power users
+- Sends to `/editing/stream` with `system_prompt_override` (skill_name: 'custom')
+- Clears textarea after sending
+
+### Technical Implementation
+
+**CSS changes:**
+- `.skills-panel` — new container with `flex-shrink: 0`, `max-height: 45vh`, `overflow-y: auto`
+- `#ai-output-area` — new output container with `flex: 1`, `overflow-y: auto`
+- `.custom-prompt-section` — new section with textarea + send button
+- `.ai-output-empty` — placeholder state when no AI responses yet
+
+**JavaScript changes:**
+- `runSkillWithPrompt()` — now appends to `#ai-output-area` instead of `#skills-container`
+- `applySkill()` — same output area change
+- `sendCustomPrompt()` — new function, calls `runSkillWithPrompt()` with custom text
+- Both functions remove `.ai-output-empty` placeholder before appending first bubble
+
+**HTML changes:**
+- Wrapped transcript + skills + custom prompt + history in `.skills-panel`
+- Added `#ai-output-area` div below the panel
+- Custom prompt section between skills and history
+
+### User Impact
+
+- **Less scrolling:** Controls always visible at top, output area scrolls independently
+- **More flexibility:** Custom prompt allows any question without pre-defined skill
+- **Better organization:** Clear separation between controls (sticky) and output (scrollable)
+
+### Testing
+
+- ✅ All 66 tests passing
+- ✅ No regressions in existing functionality
+- ✅ Skills load correctly in sticky panel
+- ✅ AI bubbles append to output area correctly
+- ✅ Scroll behavior works as expected
 
 ## Issue #18 — Transcript Input: Paste + File Upload
 
