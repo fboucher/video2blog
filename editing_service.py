@@ -39,7 +39,7 @@ def stream_edit(system_prompt, draft, transcript=None, messages=None):
     api_key = os.environ.get('EDITING_API_KEY')
     model = os.environ.get(
         'EDITING_MODEL',
-        'claude-3-haiku-20240307' if provider == 'anthropic' else 'gpt-4o-mini'
+        'claude-sonnet-4-6' if provider == 'anthropic' else 'gpt-4o-mini'
     )
     base_url = os.environ.get('EDITING_BASE_URL')
 

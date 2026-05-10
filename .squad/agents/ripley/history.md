@@ -387,7 +387,7 @@ All three mocks live in `tests/conftest.py` at module level so they're in place 
 - **Configuration** (`.env.example`):
   - Added `EDITING_PROVIDER` (default: anthropic)
   - `EDITING_API_KEY` (required)
-  - `EDITING_MODEL` (defaults: claude-3-haiku-20240307 for Anthropic, gpt-4o-mini for OpenAI)
+  - `EDITING_MODEL` (defaults: claude-sonnet-4-6 for Anthropic, gpt-4o-mini for OpenAI)
   - `EDITING_BASE_URL` (optional, for OpenAI-compatible providers)
 
 - **Dependencies** (`requirements.txt`):
