@@ -50,8 +50,9 @@
                 </div>
 
                 <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #ccc);">
-                    <h3>Add New Connection</h3>
+                    <h3 id="form-title">Add New Connection</h3>
                     <form id="add-connection-form" class="upload-form">
+                        <input type="hidden" id="edit-conn-id" value="">
                         <div class="form-group">
                             <label class="form-label">Name</label>
                             <input type="text" id="conn-name" class="form-input" required placeholder="e.g. Local LM Studio">
@@ -73,9 +74,14 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Base URL (optional)</label>
-                            <input type="url" id="conn-baseurl" class="form-input" placeholder="e.g. http://localhost:1234/v1">
+                            <input type="url" id="conn-baseurl" class="form-input" placeholder="e.g. http://localhost:11434/v1">
                         </div>
-                        <button type="submit" class="btn btn-primary">Save Connection</button>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button type="button" id="test-btn" class="btn btn-secondary" onclick="testConnection()">Test Connection</button>
+                            <button type="submit" id="submit-btn" class="btn btn-primary">Save Connection</button>
+                            <button type="button" id="cancel-btn" class="btn btn-secondary" style="display:none;" onclick="cancelEdit()">Cancel</button>
+                        </div>
+                        <div id="test-result" style="margin-top: 10px; font-weight: 500; font-size: 0.9rem;"></div>
                     </form>
                 </div>
             </div>
@@ -83,10 +89,13 @@
     </div>
 
     <script>
+        let connectionsData = [];
+
         async function loadConnections() {
             try {
                 const response = await fetch('/api/connections');
                 const data = await response.json();
+                connectionsData = data.connections;
                 renderConnections(data.connections, data.active_id);
             } catch (err) {
                 console.error("Failed to load connections", err);
@@ -115,6 +124,7 @@
                     </div>
                     <div class="connection-actions">
                         ${!isActive ? `<button class="btn btn-secondary" onclick="setActive(${conn.id})">Set Active</button>` : `<button class="btn btn-secondary" onclick="setActive(null)">Unset</button>`}
+                        <button class="btn btn-secondary" onclick="editConnection(${conn.id})">Edit</button>
                         <button class="btn btn-secondary" style="color: #d32f2f; border-color: #d32f2f;" onclick="deleteConnection(${conn.id})">Delete</button>
                     </div>
                 `;
@@ -135,14 +145,79 @@
             if(confirm("Delete this connection?")) {
                 await fetch('/api/connections/' + id, { method: 'DELETE' });
                 loadConnections();
+                cancelEdit(); // in case they were editing the deleted one
+            }
+        }
+
+        function editConnection(id) {
+            const conn = connectionsData.find(c => c.id === id);
+            if (!conn) return;
+            
+            document.getElementById('form-title').innerText = 'Edit Connection';
+            document.getElementById('edit-conn-id').value = conn.id;
+            document.getElementById('conn-name').value = conn.name;
+            document.getElementById('conn-provider').value = conn.provider;
+            document.getElementById('conn-apikey').value = conn.api_key;
+            document.getElementById('conn-model').value = conn.model_name;
+            document.getElementById('conn-baseurl').value = conn.base_url || '';
+            
+            document.getElementById('submit-btn').innerText = 'Update Connection';
+            document.getElementById('cancel-btn').style.display = 'inline-flex';
+            document.getElementById('test-result').innerText = '';
+        }
+
+        function cancelEdit() {
+            document.getElementById('add-connection-form').reset();
+            document.getElementById('form-title').innerText = 'Add New Connection';
+            document.getElementById('edit-conn-id').value = '';
+            document.getElementById('submit-btn').innerText = 'Save Connection';
+            document.getElementById('cancel-btn').style.display = 'none';
+            document.getElementById('test-result').innerText = '';
+        }
+
+        async function testConnection() {
+            const provider = document.getElementById('conn-provider').value;
+            const api_key = document.getElementById('conn-apikey').value;
+            const model_name = document.getElementById('conn-model').value;
+            const base_url = document.getElementById('conn-baseurl').value;
+            const resultDiv = document.getElementById('test-result');
+
+            if (!api_key || !model_name) {
+                resultDiv.innerText = "Please provide API Key and Model Name to test.";
+                resultDiv.style.color = '#d32f2f';
+                return;
+            }
+
+            resultDiv.innerText = "Testing connection...";
+            resultDiv.style.color = '#666';
+
+            try {
+                const response = await fetch('/api/connections/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ provider, api_key, model_name, base_url })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    resultDiv.innerText = "✅ " + data.message;
+                    resultDiv.style.color = '#2e7d32';
+                } else {
+                    resultDiv.innerText = "❌ " + data.error;
+                    resultDiv.style.color = '#d32f2f';
+                }
+            } catch (err) {
+                resultDiv.innerText = "❌ Request failed: " + err.message;
+                resultDiv.style.color = '#d32f2f';
             }
         }
 
         document.getElementById('add-connection-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const btn = e.target.querySelector('button');
+            const btn = document.getElementById('submit-btn');
             btn.disabled = true;
             
+            const editId = document.getElementById('edit-conn-id').value;
             const payload = {
                 name: document.getElementById('conn-name').value,
                 provider: document.getElementById('conn-provider').value,
@@ -152,12 +227,20 @@
             };
             
             try {
-                await fetch('/api/connections', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                e.target.reset();
+                if (editId) {
+                    await fetch('/api/connections/' + editId, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } else {
+                    await fetch('/api/connections', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+                cancelEdit();
                 loadConnections();
             } finally {
                 btn.disabled = false;
