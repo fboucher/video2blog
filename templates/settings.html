@@ -123,16 +123,21 @@
                         ${conn.base_url ? `<p>URL: ${conn.base_url}</p>` : ''}
                     </div>
                     <div class="connection-actions">
-                        ${!isActive ? `<button class="btn btn-secondary" onclick="setActive(${conn.id})">Set Active</button>` : `<button class="btn btn-secondary" onclick="setActive(null)">Unset</button>`}
+                        ${!isActive ? `<button class="btn btn-secondary" onclick="setActive(${conn.id}, this)">Set Active</button>` : `<button class="btn btn-secondary" onclick="setActive(null, this)">Unset</button>`}
                         <button class="btn btn-secondary" onclick="editConnection(${conn.id})">Edit</button>
-                        <button class="btn btn-secondary" style="color: #d32f2f; border-color: #d32f2f;" onclick="deleteConnection(${conn.id})">Delete</button>
+                        <button class="btn btn-secondary" style="color: #d32f2f; border-color: #d32f2f;" onclick="deleteConnection(${conn.id}, this)">Delete</button>
                     </div>
                 `;
                 list.appendChild(div);
             });
         }
 
-        async function setActive(id) {
+        async function setActive(id, btnElement) {
+            if (btnElement) {
+                const originalText = btnElement.innerText;
+                btnElement.innerText = 'Setting...';
+                btnElement.disabled = true;
+            }
             await fetch('/api/settings/active', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -141,8 +146,12 @@
             loadConnections();
         }
 
-        async function deleteConnection(id) {
+        async function deleteConnection(id, btnElement) {
             if(confirm("Delete this connection?")) {
+                if (btnElement) {
+                    btnElement.innerText = 'Deleting...';
+                    btnElement.disabled = true;
+                }
                 await fetch('/api/connections/' + id, { method: 'DELETE' });
                 loadConnections();
                 cancelEdit(); // in case they were editing the deleted one
@@ -181,6 +190,7 @@
             const model_name = document.getElementById('conn-model').value;
             const base_url = document.getElementById('conn-baseurl').value;
             const resultDiv = document.getElementById('test-result');
+            const testBtn = document.getElementById('test-btn');
 
             if (!api_key || !model_name) {
                 resultDiv.innerText = "Please provide API Key and Model Name to test.";
@@ -188,8 +198,11 @@
                 return;
             }
 
-            resultDiv.innerText = "Testing connection...";
-            resultDiv.style.color = '#666';
+            testBtn.disabled = true;
+            const originalBtnText = testBtn.innerText;
+            testBtn.innerText = 'Testing...';
+
+            resultDiv.innerText = "";
 
             try {
                 const response = await fetch('/api/connections/test', {
@@ -209,13 +222,18 @@
             } catch (err) {
                 resultDiv.innerText = "❌ Request failed: " + err.message;
                 resultDiv.style.color = '#d32f2f';
+            } finally {
+                testBtn.disabled = false;
+                testBtn.innerText = originalBtnText;
             }
         }
 
         document.getElementById('add-connection-form').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submit-btn');
+            const originalBtnText = btn.innerText;
             btn.disabled = true;
+            btn.innerText = 'Saving...';
             
             const editId = document.getElementById('edit-conn-id').value;
             const payload = {
@@ -244,6 +262,7 @@
                 loadConnections();
             } finally {
                 btn.disabled = false;
+                btn.innerText = originalBtnText; // Will be reset by cancelEdit anyway, but safe
             }
         });
 
