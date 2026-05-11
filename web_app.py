@@ -951,5 +951,77 @@ def gemini_ask():
     })
 
 
+# ── Settings ─────────────────────────────────────────────────────────
+
+@app.route('/settings')
+def settings_page():
+    """Render the settings page."""
+    return render_template('settings.html', version=APP_VERSION)
+
+
+@app.route('/api/connections', methods=['GET'])
+def get_connections():
+    connections = db_service.list_connections()
+    active_id = db_service.get_active_connection_id()
+    return jsonify({
+        'connections': connections,
+        'active_id': active_id
+    })
+
+
+@app.route('/api/connections', methods=['POST'])
+def create_connection():
+    data = request.get_json()
+    if not data or 'name' not in data or 'provider' not in data or 'api_key' not in data or 'model_name' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    conn_id = db_service.add_connection(
+        name=data['name'],
+        provider=data['provider'],
+        api_key=data['api_key'],
+        model_name=data['model_name'],
+        base_url=data.get('base_url')
+    )
+    return jsonify({'success': True, 'id': conn_id})
+
+
+@app.route('/api/connections/<int:conn_id>', methods=['PUT'])
+def update_connection(conn_id):
+    data = request.get_json()
+    if not data or 'name' not in data or 'provider' not in data or 'api_key' not in data or 'model_name' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+        
+    success = db_service.update_connection(
+        conn_id=conn_id,
+        name=data['name'],
+        provider=data['provider'],
+        api_key=data['api_key'],
+        model_name=data['model_name'],
+        base_url=data.get('base_url')
+    )
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to update connection'}), 500
+
+
+@app.route('/api/connections/<int:conn_id>', methods=['DELETE'])
+def delete_connection(conn_id):
+    success = db_service.delete_connection(conn_id)
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to delete connection'}), 500
+
+
+@app.route('/api/settings/active', methods=['PUT'])
+def set_active_connection():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+        
+    conn_id = data.get('conn_id')
+    db_service.set_active_connection_id(conn_id)
+    return jsonify({'success': True})
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5123, debug=True)

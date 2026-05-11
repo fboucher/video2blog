@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Video2Blog</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .settings-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .connection-card {
+            border: 1px solid var(--border-color, #ccc);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .connection-card.active {
+            border-color: var(--primary-color, #007bff);
+            box-shadow: 0 0 0 2px var(--primary-color, #007bff);
+        }
+        .connection-info h3 { margin: 0 0 0.5rem 0; }
+        .connection-info p { margin: 0; color: #666; font-size: 0.9rem; }
+        .connection-actions { display: flex; gap: 0.5rem; }
+    </style>
+</head>
+<body>
+    <div class="container settings-container">
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1><span class="material-symbols-rounded header-icon">settings</span> Settings</h1>
+                <p>Manage AI connections for text editing skills</p>
+            </div>
+            <a href="/" class="btn btn-secondary">Back to Home</a>
+        </header>
+
+        <main>
+            <div class="card">
+                <h2>Text AI Connections</h2>
+                <p style="margin-bottom: 1.5rem;">Configure OpenAI or Anthropic compatible connections for the text skills. If none is active, the app will fall back to your environment variables.</p>
+                
+                <div id="connections-list">
+                    <!-- Connections will be loaded here -->
+                    <p>Loading connections...</p>
+                </div>
+
+                <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #ccc);">
+                    <h3>Add New Connection</h3>
+                    <form id="add-connection-form" class="upload-form">
+                        <div class="form-group">
+                            <label class="form-label">Name</label>
+                            <input type="text" id="conn-name" class="form-input" required placeholder="e.g. Local LM Studio">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Provider</label>
+                            <select id="conn-provider" class="form-input" required>
+                                <option value="openai">OpenAI Compatible</option>
+                                <option value="anthropic">Anthropic</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API Key</label>
+                            <input type="password" id="conn-apikey" class="form-input" required placeholder="sk-...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Model Name</label>
+                            <input type="text" id="conn-model" class="form-input" required placeholder="e.g. gpt-4o-mini">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Base URL (optional)</label>
+                            <input type="url" id="conn-baseurl" class="form-input" placeholder="e.g. http://localhost:1234/v1">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Save Connection</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        async function loadConnections() {
+            try {
+                const response = await fetch('/api/connections');
+                const data = await response.json();
+                renderConnections(data.connections, data.active_id);
+            } catch (err) {
+                console.error("Failed to load connections", err);
+            }
+        }
+
+        function renderConnections(connections, activeId) {
+            const list = document.getElementById('connections-list');
+            list.innerHTML = '';
+            
+            if (connections.length === 0) {
+                list.innerHTML = '<p>No custom connections found. Using environment default.</p>';
+                return;
+            }
+
+            connections.forEach(conn => {
+                const isActive = activeId == conn.id;
+                const div = document.createElement('div');
+                div.className = `connection-card ${isActive ? 'active' : ''}`;
+                
+                div.innerHTML = `
+                    <div class="connection-info">
+                        <h3>${conn.name} ${isActive ? '<span style="color:var(--primary-color, #007bff); font-size: 0.8rem;">(Active)</span>' : ''}</h3>
+                        <p>${conn.provider === 'openai' ? 'OpenAI' : 'Anthropic'} &middot; Model: ${conn.model_name}</p>
+                        ${conn.base_url ? `<p>URL: ${conn.base_url}</p>` : ''}
+                    </div>
+                    <div class="connection-actions">
+                        ${!isActive ? `<button class="btn btn-secondary" onclick="setActive(${conn.id})">Set Active</button>` : `<button class="btn btn-secondary" onclick="setActive(null)">Unset</button>`}
+                        <button class="btn btn-secondary" style="color: #d32f2f; border-color: #d32f2f;" onclick="deleteConnection(${conn.id})">Delete</button>
+                    </div>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        async function setActive(id) {
+            await fetch('/api/settings/active', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conn_id: id })
+            });
+            loadConnections();
+        }
+
+        async function deleteConnection(id) {
+            if(confirm("Delete this connection?")) {
+                await fetch('/api/connections/' + id, { method: 'DELETE' });
+                loadConnections();
+            }
+        }
+
+        document.getElementById('add-connection-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button');
+            btn.disabled = true;
+            
+            const payload = {
+                name: document.getElementById('conn-name').value,
+                provider: document.getElementById('conn-provider').value,
+                api_key: document.getElementById('conn-apikey').value,
+                model_name: document.getElementById('conn-model').value,
+                base_url: document.getElementById('conn-baseurl').value
+            };
+            
+            try {
+                await fetch('/api/connections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                e.target.reset();
+                loadConnections();
+            } finally {
+                btn.disabled = false;
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', loadConnections);
+    </script>
+</body>
+</html>

@@ -103,6 +103,22 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
 
+        # 7. AI Connections and Settings
+        conn.execute('''CREATE TABLE IF NOT EXISTS ai_connections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            provider TEXT NOT NULL,
+            api_key TEXT NOT NULL,
+            model_name TEXT NOT NULL,
+            base_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )''')
+        
+        conn.execute('''CREATE TABLE IF NOT EXISTS app_settings (
+            setting_key TEXT PRIMARY KEY,
+            setting_value TEXT
+        )''')
+
         conn.commit()
 
 
@@ -419,3 +435,81 @@ def restore_draft_version(draft_id: int, version_id: int) -> None:
             (draft_id, content),
         )
         conn.commit()
+
+
+# ── AI Connections & Settings ──────────────────────────────────────────────────
+
+def add_connection(name: str, provider: str, api_key: str, model_name: str, base_url: str = None) -> int:
+    with get_db() as conn:
+        cursor = conn.execute(
+            '''INSERT INTO ai_connections (name, provider, api_key, model_name, base_url)
+               VALUES (?, ?, ?, ?, ?)''',
+            (name, provider, api_key, model_name, base_url)
+        )
+        conn.commit()
+        return cursor.lastrowid
+
+def update_connection(conn_id: int, name: str, provider: str, api_key: str, model_name: str, base_url: str = None) -> bool:
+    with get_db() as conn:
+        try:
+            conn.execute(
+                '''UPDATE ai_connections 
+                   SET name = ?, provider = ?, api_key = ?, model_name = ?, base_url = ?
+                   WHERE id = ?''',
+                (name, provider, api_key, model_name, base_url, conn_id)
+            )
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error updating connection: {e}")
+            return False
+
+def get_connection(conn_id: int) -> dict:
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM ai_connections WHERE id = ?', (conn_id,)).fetchone()
+        return dict(row) if row else None
+
+def list_connections() -> list:
+    with get_db() as conn:
+        rows = conn.execute('SELECT * FROM ai_connections ORDER BY created_at DESC').fetchall()
+        return [dict(row) for row in rows]
+
+def delete_connection(conn_id: int) -> bool:
+    with get_db() as conn:
+        try:
+            conn.execute('DELETE FROM ai_connections WHERE id = ?', (conn_id,))
+            # If this was the active connection, unset it
+            active_id = get_active_connection_id()
+            if active_id and int(active_id) == int(conn_id):
+                set_active_connection_id(None)
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"Error deleting connection: {e}")
+            return False
+
+def set_active_connection_id(conn_id: int = None):
+    with get_db() as conn:
+        if conn_id is None:
+            conn.execute('DELETE FROM app_settings WHERE setting_key = ?', ('active_text_connection_id',))
+        else:
+            conn.execute(
+                '''INSERT OR REPLACE INTO app_settings (setting_key, setting_value)
+                   VALUES (?, ?)''',
+                ('active_text_connection_id', str(conn_id))
+            )
+        conn.commit()
+
+def get_active_connection_id() -> int:
+    with get_db() as conn:
+        row = conn.execute(
+            'SELECT setting_value FROM app_settings WHERE setting_key = ?',
+            ('active_text_connection_id',)
+        ).fetchone()
+        return int(row['setting_value']) if row and row['setting_value'] else None
+
+def get_active_connection() -> dict:
+    conn_id = get_active_connection_id()
+    if conn_id is not None:
+        return get_connection(conn_id)
+    return None
