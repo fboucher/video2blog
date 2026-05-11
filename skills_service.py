@@ -5,6 +5,7 @@ Functions:
   list_skills(skills_folder=None) → list of {name, description, modes?, parameters?} dicts
   get_skill_prompt(skill_name, skills_folder=None) → prompt body (str)
   get_skill_data(skill_name, skills_folder=None) → full skill data dict
+  get_merged_parameters(skill_name, mode_name, skills_folder=None) → merged parameter list
 """
 
 import os
@@ -197,3 +198,35 @@ def get_skill_data(skill_name, skills_folder=None):
         skill_data["parameters"] = frontmatter["parameters"]
     
     return skill_data
+
+
+def get_merged_parameters(skill_name, mode_name=None, skills_folder=None):
+    """
+    Return the merged parameter list for a skill invocation.
+
+    Skill-level parameters (apply to every invocation) are listed first,
+    followed by mode-level parameters (only when mode_name is given).
+
+    Args:
+        skill_name: Name of the skill (subdirectory name)
+        mode_name: Optional mode name to include mode-level parameters
+        skills_folder: Optional override for skills folder path
+
+    Returns:
+        list: [{name, label, placeholder?, required?}, ...]
+
+    Raises:
+        FileNotFoundError: If the skill does not exist
+        ValueError: If the SKILL.md is malformed
+    """
+    skill_data = get_skill_data(skill_name, skills_folder)
+
+    merged = list(skill_data.get("parameters") or [])
+
+    if mode_name:
+        for mode in skill_data.get("modes") or []:
+            if mode.get("name") == mode_name:
+                merged.extend(mode.get("parameters") or [])
+                break
+
+    return merged

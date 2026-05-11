@@ -171,11 +171,25 @@
 
         .editor-pane-left {
             flex: 0 0 60%;
-            border-right: 1px solid var(--ctp-mocha-surface0);
+            min-width: 200px;
         }
 
         .editor-pane-right {
-            flex: 0 0 40%;
+            flex: 1 1 0;
+            min-width: 200px;
+        }
+
+        .pane-divider {
+            width: 5px;
+            background: var(--ctp-mocha-surface0);
+            cursor: col-resize;
+            flex-shrink: 0;
+            transition: background 0.15s;
+        }
+
+        .pane-divider:hover,
+        .pane-divider.dragging {
+            background: var(--ctp-mocha-blue);
         }
 
         .pane-header {
@@ -341,6 +355,33 @@
         }
 
         .apply-btn .material-symbols-rounded {
+            font-size: 16px;
+        }
+
+        .use-as-prompt-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 8px;
+            margin-left: 8px;
+            padding: 6px 14px;
+            background: transparent;
+            color: var(--ctp-mocha-lavender);
+            border: 1px solid var(--ctp-mocha-lavender);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .use-as-prompt-btn:hover {
+            background: var(--ctp-mocha-lavender);
+            color: var(--ctp-mocha-crust);
+            transform: translateY(-1px);
+        }
+
+        .use-as-prompt-btn .material-symbols-rounded {
             font-size: 16px;
         }
 
@@ -800,6 +841,11 @@
             border-top: 1px solid var(--ctp-mocha-surface0);
         }
 
+        .required-star {
+            color: var(--color-danger, #e53e3e);
+            font-weight: bold;
+        }
+
         .modal-actions button {
             padding: 8px 20px;
             border: none;
@@ -882,6 +928,9 @@
             </div>
             <textarea id="draft-content" spellcheck="true" placeholder="Your blog draft will appear here…">{{ draft.content }}</textarea>
         </div>
+
+        <!-- Draggable divider -->
+        <div class="pane-divider" id="pane-divider"></div>
 
         <!-- Right: AI chat placeholder -->
         <div class="editor-pane editor-pane-right">
@@ -1188,8 +1237,12 @@
                             btn.className = 'skill-sub-btn';
                             btn.textContent = mode.label;
                             btn.onclick = () => {
-                                if (mode.parameters && mode.parameters.length > 0) {
-                                    openSkillModal(skill.name, mode.name, mode.label, mode.parameters);
+                                const mergedParams = [
+                                    ...(skill.parameters || []),
+                                    ...(mode.parameters || [])
+                                ];
+                                if (mergedParams.length > 0) {
+                                    openSkillModal(skill.name, mode.name, mode.label, mergedParams);
                                 } else {
                                     runSkillWithParams(skill.name, mode.name, mode.label, {});
                                 }
@@ -1202,7 +1255,13 @@
                         // Simple skill button
                         const btn = document.createElement('button');
                         btn.className = 'skill-btn';
-                        btn.onclick = () => applySkill(skill.name);
+                        btn.onclick = () => {
+                            if (skill.parameters && skill.parameters.length > 0) {
+                                openSkillModal(skill.name, null, skill.description, skill.parameters);
+                            } else {
+                                applySkill(skill.name);
+                            }
+                        };
                         
                         btn.innerHTML = `
                             <div class="skill-btn-name">${skill.name}</div>
@@ -1231,8 +1290,8 @@
             const inputsDiv = document.getElementById('modal-inputs');
             inputsDiv.innerHTML = parameters.map(p => `
                 <label>
-                    ${p.label}
-                    <input type="text" name="${p.name}" placeholder="${p.placeholder || ''}" />
+                    ${p.label}${p.required ? ' <span class="required-star">*</span>' : ''}
+                    <input type="text" name="${p.name}" placeholder="${p.placeholder || ''}" ${p.required ? 'required' : ''} />
                 </label>
             `).join('');
             
@@ -1240,9 +1299,17 @@
             
             document.getElementById('modal-run').onclick = () => {
                 const params = {};
+                let valid = true;
                 inputsDiv.querySelectorAll('input').forEach(inp => {
                     params[inp.name] = inp.value;
+                    if (inp.required && !inp.value.trim()) valid = false;
                 });
+                if (!valid) {
+                    inputsDiv.querySelectorAll('input[required]').forEach(inp => {
+                        inp.style.borderColor = inp.value.trim() ? '' : 'var(--color-danger, #e53e3e)';
+                    });
+                    return;
+                }
                 modal.close();
                 runSkillWithParams(skillName, modeName, modeLabel, params);
             };
@@ -1256,49 +1323,36 @@
         }
 
         async function runSkillWithParams(skillName, modeName, modeLabel, params) {
-            console.log('Running skill with params:', skillName, modeName, params);
-            
-            try {
-                // Fetch the skill data
-                const skillResp = await fetch(`/editing/skill/${skillName}`);
-                if (!skillResp.ok) throw new Error(`Failed to fetch skill: ${skillResp.status}`);
-                
-                const skillData = await skillResp.json();
-                let prompt = skillData.prompt;
-                
-                // Interpolate parameters
-                for (const [key, value] of Object.entries(params)) {
-                    prompt = prompt.replaceAll('{{' + key + '}}', value);
-                }
-                
-                // If mode specified, prepend mode to prompt
-                if (modeName) {
-                    prompt = `Mode: ${modeLabel || modeName}\n\n` + prompt;
-                }
-                
-                // Call stream with override
-                await runSkillWithPrompt(skillName, prompt, modeLabel || modeName);
-            } catch (err) {
-                console.error('Failed to run skill:', err);
-                showToast(`Failed to run skill: ${err.message}`, 'error');
-            }
+            const displayName = modeLabel || skillName;
+            const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
+
+            const body = {
+                draft_id: DRAFT_ID,
+                skill_name: skillName,
+                transcript_override: transcriptValue,
+                parameters: params
+            };
+            if (modeName) body.mode_name = modeName;
+
+            await _runStream(skillName, displayName, body);
         }
 
         async function runSkillWithPrompt(skillName, promptOverride, displayName) {
-            console.log('Running skill with prompt override:', skillName);
-            
+            const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
+            await _runStream(skillName, displayName || skillName, {
+                draft_id: DRAFT_ID,
+                skill_name: skillName,
+                system_prompt_override: promptOverride,
+                transcript_override: transcriptValue
+            });
+        }
+
+        async function _runStream(skillName, displayName, bodyObj) {
             try {
-                const transcriptValue = document.getElementById('transcript-input').value.trim() || null;
-                
                 const response = await fetch('/editing/stream', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        draft_id: DRAFT_ID,
-                        skill_name: skillName,
-                        system_prompt_override: promptOverride,
-                        transcript_override: transcriptValue
-                    })
+                    body: JSON.stringify(bodyObj)
                 });
 
                 if (!response.ok) {
@@ -1306,21 +1360,15 @@
                     throw new Error(error.error || `Server returned ${response.status}`);
                 }
 
-                // Create AI response bubble in output area
                 const outputArea = document.getElementById('ai-output-area');
-                
-                // Remove empty placeholder if present
                 const emptyPlaceholder = outputArea.querySelector('.ai-output-empty');
                 if (emptyPlaceholder) emptyPlaceholder.remove();
-                
+
                 const bubble = document.createElement('div');
                 bubble.className = 'ai-bubble streaming';
                 outputArea.appendChild(bubble);
-                
-                // Scroll to bottom
                 outputArea.scrollTop = outputArea.scrollHeight;
 
-                // Read SSE stream
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
                 let fullText = '';
@@ -1329,37 +1377,49 @@
                 while (true) {
                     const {done, value} = await reader.read();
                     if (done) break;
-                    
+
                     buffer += decoder.decode(value, {stream: true});
-                    
-                    // Parse SSE lines: "data: {...}\n\n"
                     const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
-                    
+                    buffer = lines.pop() || '';
+
                     for (const line of lines) {
                         if (line.startsWith('data: ')) {
                             try {
                                 const chunk = JSON.parse(line.slice(6));
-                                
+
                                 if (chunk.delta) {
                                     fullText += chunk.delta;
                                     bubble.textContent = fullText;
                                     outputArea.scrollTop = outputArea.scrollHeight;
                                 }
-                                
+
                                 if (chunk.done) {
                                     bubble.classList.remove('streaming');
-                                    
-                                    // Add Apply to draft button
-                                    const btn = document.createElement('button');
-                                    btn.className = 'apply-btn';
-                                    btn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
-                                    btn.onclick = () => applyToDraft(fullText, displayName || skillName);
-                                    bubble.appendChild(btn);
-                                    
+
+                                    const btnRow = document.createElement('div');
+                                    btnRow.style.marginTop = '12px';
+
+                                    const applyBtn = document.createElement('button');
+                                    applyBtn.className = 'apply-btn';
+                                    applyBtn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
+                                    applyBtn.onclick = () => applyToDraft(fullText, displayName || skillName);
+                                    btnRow.appendChild(applyBtn);
+
+                                    const useBtn = document.createElement('button');
+                                    useBtn.className = 'use-as-prompt-btn';
+                                    useBtn.innerHTML = '<span class="material-symbols-rounded">chat</span>Use as prompt';
+                                    useBtn.onclick = () => {
+                                        const promptInput = document.getElementById('custom-prompt-input');
+                                        promptInput.value = fullText;
+                                        promptInput.focus();
+                                        promptInput.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+                                    };
+                                    btnRow.appendChild(useBtn);
+
+                                    bubble.appendChild(btnRow);
                                     outputArea.scrollTop = outputArea.scrollHeight;
                                 }
-                                
+
                                 if (chunk.error) {
                                     throw new Error(chunk.error);
                                 }
@@ -1375,95 +1435,13 @@
             }
         }
 
-
         async function applySkill(skillName) {
-            console.log('Applying skill:', skillName);
-            
-            try {
-                const transcriptValue = transcriptInput.value.trim() || null;
-                
-                const response = await fetch('/editing/stream', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        draft_id: DRAFT_ID,
-                        skill_name: skillName,
-                        transcript_override: transcriptValue
-                    })
-                });
-
-                if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || `Server returned ${response.status}`);
-                }
-
-                // Create AI response bubble in output area
-                const outputArea = document.getElementById('ai-output-area');
-                
-                // Remove empty placeholder if present
-                const emptyPlaceholder = outputArea.querySelector('.ai-output-empty');
-                if (emptyPlaceholder) emptyPlaceholder.remove();
-                
-                const bubble = document.createElement('div');
-                bubble.className = 'ai-bubble streaming';
-                outputArea.appendChild(bubble);
-                
-                // Scroll to bottom
-                outputArea.scrollTop = outputArea.scrollHeight;
-
-                // Read SSE stream
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let fullText = '';
-                let buffer = '';
-
-                while (true) {
-                    const {done, value} = await reader.read();
-                    if (done) break;
-                    
-                    buffer += decoder.decode(value, {stream: true});
-                    
-                    // Parse SSE lines: "data: {...}\n\n"
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
-                    
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            try {
-                                const chunk = JSON.parse(line.slice(6));
-                                
-                                if (chunk.delta) {
-                                    fullText += chunk.delta;
-                                    bubble.textContent = fullText;
-                                    outputArea.scrollTop = outputArea.scrollHeight;
-                                }
-                                
-                                if (chunk.done) {
-                                    bubble.classList.remove('streaming');
-                                    
-                                    // Add Apply to draft button
-                                    const btn = document.createElement('button');
-                                    btn.className = 'apply-btn';
-                                    btn.innerHTML = '<span class="material-symbols-rounded">check_circle</span>Apply to draft';
-                                    btn.onclick = () => applyToDraft(fullText, skillName);
-                                    bubble.appendChild(btn);
-                                    
-                                    outputArea.scrollTop = outputArea.scrollHeight;
-                                }
-                                
-                                if (chunk.error) {
-                                    throw new Error(chunk.error);
-                                }
-                            } catch (parseError) {
-                                console.error('Failed to parse SSE chunk:', parseError, line);
-                            }
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Skill execution failed:', err);
-                showToast(`Failed to run skill: ${err.message}`, 'error');
-            }
+            const transcriptValue = document.getElementById('transcript-input') && document.getElementById('transcript-input').value.trim() || null;
+            await _runStream(skillName, skillName, {
+                draft_id: DRAFT_ID,
+                skill_name: skillName,
+                transcript_override: transcriptValue
+            });
         }
 
         async function applyToDraft(content, skillName) {
@@ -1555,6 +1533,39 @@
                 showToast(`Restore failed: ${err.message}`, 'error');
             }
         }
+
+        // ── Draggable pane divider ───────────────────────────────
+        (function() {
+            const divider = document.getElementById('pane-divider');
+            const leftPane = document.querySelector('.editor-pane-left');
+            const body = document.querySelector('.editor-body');
+            let dragging = false;
+
+            divider.addEventListener('mousedown', (e) => {
+                dragging = true;
+                divider.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                const bodyRect = body.getBoundingClientRect();
+                const newLeftWidth = e.clientX - bodyRect.left;
+                const totalWidth = bodyRect.width - divider.offsetWidth;
+                const pct = Math.min(Math.max(newLeftWidth / totalWidth * 100, 15), 85);
+                leftPane.style.flex = '0 0 ' + pct + '%';
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!dragging) return;
+                dragging = false;
+                divider.classList.remove('dragging');
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+        })();
 
         // Load skills on page load
         loadSkills();

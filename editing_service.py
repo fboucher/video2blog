@@ -21,7 +21,7 @@ def get_provider():
     return os.environ.get('EDITING_PROVIDER', 'anthropic').lower()
 
 
-def stream_edit(system_prompt, draft, transcript=None, messages=None):
+def stream_edit(system_prompt, draft, transcript=None, messages=None, parameters=None):
     """
     Generator yielding SSE-formatted JSON strings.
     
@@ -30,6 +30,7 @@ def stream_edit(system_prompt, draft, transcript=None, messages=None):
         draft: The current draft content
         transcript: Optional video transcript
         messages: Optional conversation history (reserved for future multi-turn)
+        parameters: Optional dict of user-supplied parameter values to append to the user message
     
     Yields:
         SSE data lines: 'data: {"delta": "...", "done": false}\n\n'
@@ -47,6 +48,11 @@ def stream_edit(system_prompt, draft, transcript=None, messages=None):
     user_content = f"Draft:\n\n{draft}"
     if transcript:
         user_content += f"\n\nTranscript:\n\n{transcript}"
+    if parameters:
+        filled = {k: v for k, v in parameters.items() if str(v).strip()}
+        if filled:
+            lines = "\n".join(f"- {k}: {v}" for k, v in filled.items())
+            user_content += f"\n\nParameters:\n{lines}"
 
     if provider == 'anthropic':
         import anthropic

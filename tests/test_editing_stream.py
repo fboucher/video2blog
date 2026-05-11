@@ -218,3 +218,117 @@ def test_post_editing_stream_returns_503_when_not_configured(client, monkeypatch
         json={"draft_id": 1, "skill_name": "edit-video-blog", "messages": []},
     )
     assert resp.status_code == 503
+
+
+# ── POST /editing/stream — parameter handling ─────────────────────────────────
+
+def test_post_editing_stream_passes_parameters_to_service(client, mem_db, monkeypatch):
+    """POST /editing/stream forwards parameters dict to editing_service.stream_edit."""
+    monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+
+    draft_id = db_service.create_draft("vid-10", "Talk", "Draft.")
+    mock_chunks = [b'data: {"done": true}\n\n']
+
+    captured = {}
+
+    def fake_stream_edit(system_prompt, draft, transcript=None, messages=None, parameters=None):
+        captured["parameters"] = parameters
+        return iter(mock_chunks)
+
+    with patch("editing_service.stream_edit", side_effect=fake_stream_edit):
+        client.post(
+            "/editing/stream",
+            json={
+                "draft_id": draft_id,
+                "skill_name": "edit-video-blog",
+                "parameters": {"section": "Introduction"},
+            },
+        )
+
+    assert captured.get("parameters") == {"section": "Introduction"}
+
+
+def test_post_editing_stream_validates_required_parameter(client, mem_db, monkeypatch, tmp_path):
+    """POST /editing/stream returns 400 when a required parameter is missing."""
+    monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+    monkeypatch.setenv("SKILLS_FOLDER", str(tmp_path))
+
+    # Create a skill with a required parameter
+    skill_dir = tmp_path / "strict-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: strict-skill\ndescription: A strict skill\n"
+        "parameters:\n  - name: topic\n    label: Topic\n    required: true\n---\nDo something.\n"
+    )
+
+    draft_id = db_service.create_draft("vid-11", "Talk", "Draft.")
+
+    resp = client.post(
+        "/editing/stream",
+        json={
+            "draft_id": draft_id,
+            "skill_name": "strict-skill",
+            "parameters": {},
+        },
+    )
+    assert resp.status_code == 400
+    assert "Topic" in resp.get_json().get("error", "")
+
+
+def test_post_editing_stream_accepts_request_when_required_param_provided(
+    client, mem_db, monkeypatch, tmp_path
+):
+    """POST /editing/stream succeeds when required parameters are present."""
+    monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+    monkeypatch.setenv("SKILLS_FOLDER", str(tmp_path))
+
+    skill_dir = tmp_path / "strict-skill"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: strict-skill\ndescription: A strict skill\n"
+        "parameters:\n  - name: topic\n    label: Topic\n    required: true\n---\nDo something.\n"
+    )
+
+    draft_id = db_service.create_draft("vid-12", "Talk", "Draft.")
+    mock_chunks = [b'data: {"done": true}\n\n']
+
+    with patch("editing_service.stream_edit", return_value=iter(mock_chunks)):
+        resp = client.post(
+            "/editing/stream",
+            json={
+                "draft_id": draft_id,
+                "skill_name": "strict-skill",
+                "parameters": {"topic": "AI"},
+            },
+        )
+    assert resp.status_code == 200
+
+
+def test_post_editing_stream_prepends_mode_label_to_prompt(client, mem_db, monkeypatch):
+    """POST /editing/stream prepends the mode label to the system prompt."""
+    monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+
+    draft_id = db_service.create_draft("vid-13", "Talk", "Draft.")
+    mock_chunks = [b'data: {"done": true}\n\n']
+
+    captured = {}
+
+    def fake_stream_edit(system_prompt, draft, transcript=None, messages=None, parameters=None):
+        captured["system_prompt"] = system_prompt
+        return iter(mock_chunks)
+
+    with patch("editing_service.stream_edit", side_effect=fake_stream_edit):
+        client.post(
+            "/editing/stream",
+            json={
+                "draft_id": draft_id,
+                "skill_name": "text-editor",
+                "mode_name": "full-edit",
+            },
+        )
+
+    assert "Full Edit" in captured.get("system_prompt", "")

@@ -2,11 +2,10 @@
 Unit tests for skills_service.py — Issue #15 acceptance criteria.
 
 Tests verify:
-  list_skills()         — scans SKILLS_FOLDER, parses YAML front matter,
-                          returns list of skill dicts; skips malformed files
-  get_skill_prompt()    — returns prompt body with front matter stripped
-
-All tests are marked skip until the #15 implementation lands.
+  list_skills()              — scans SKILLS_FOLDER, parses YAML front matter,
+                               returns list of skill dicts; skips malformed files
+  get_skill_prompt()         — returns prompt body with front matter stripped
+  get_merged_parameters()    — merges skill-level and mode-level parameters
 """
 
 import os
@@ -35,6 +34,41 @@ description: [unclosed bracket
 ---
 
 Body text here.
+"""
+
+SKILL_WITH_PARAMETERS = """\
+---
+name: fact-checker
+description: Verify factual claims
+parameters:
+  - name: audience
+    label: "Target audience"
+    placeholder: "e.g. developers"
+    required: true
+  - name: goal
+    label: "Goal of the piece"
+---
+You are a fact-checking assistant.
+"""
+
+SKILL_WITH_MODES_AND_PARAMS = """\
+---
+name: text-editor
+description: General-purpose text editing
+parameters:
+  - name: style
+    label: "Writing style"
+modes:
+  - name: full-edit
+    label: "Full Edit"
+  - name: rewrite-section
+    label: "Rewrite Section"
+    parameters:
+      - name: section
+        label: "Which section?"
+        required: true
+---
+You are an expert copy editor.
 """
 
 MINIMAL_SKILL_MD = """\
@@ -174,3 +208,99 @@ def test_get_skill_prompt_body_is_stripped(tmp_path):
     assert body == body.strip(), (
         "get_skill_prompt() should return a stripped string"
     )
+
+
+# ── get_merged_parameters ──────────────────────────────────────────────────────
+
+def test_get_merged_parameters_skill_level_only(tmp_path):
+    """get_merged_parameters() returns skill-level params when no mode is given."""
+    skill_dir = tmp_path / "fact-checker"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(SKILL_WITH_PARAMETERS)
+
+    import skills_service
+    params = skills_service.get_merged_parameters("fact-checker", skills_folder=str(tmp_path))
+
+    names = [p["name"] for p in params]
+    assert "audience" in names
+    assert "goal" in names
+
+
+def test_get_merged_parameters_merges_skill_and_mode(tmp_path):
+    """get_merged_parameters() merges skill-level and mode-level params."""
+    skill_dir = tmp_path / "text-editor"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
+
+    import skills_service
+    params = skills_service.get_merged_parameters(
+        "text-editor", mode_name="rewrite-section", skills_folder=str(tmp_path)
+    )
+
+    names = [p["name"] for p in params]
+    assert "style" in names       # skill-level
+    assert "section" in names     # mode-level
+
+
+def test_get_merged_parameters_skill_level_first(tmp_path):
+    """get_merged_parameters() lists skill-level params before mode-level params."""
+    skill_dir = tmp_path / "text-editor"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
+
+    import skills_service
+    params = skills_service.get_merged_parameters(
+        "text-editor", mode_name="rewrite-section", skills_folder=str(tmp_path)
+    )
+
+    names = [p["name"] for p in params]
+    assert names.index("style") < names.index("section")
+
+
+def test_get_merged_parameters_no_params_returns_empty(tmp_path):
+    """get_merged_parameters() returns [] for a skill with no parameters."""
+    skill_dir = tmp_path / "summarize"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(VALID_SKILL_MD)
+
+    import skills_service
+    params = skills_service.get_merged_parameters("summarize", skills_folder=str(tmp_path))
+
+    assert params == []
+
+
+def test_get_merged_parameters_unmatched_mode_returns_skill_level_only(tmp_path):
+    """get_merged_parameters() with an unknown mode returns only skill-level params."""
+    skill_dir = tmp_path / "text-editor"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
+
+    import skills_service
+    params = skills_service.get_merged_parameters(
+        "text-editor", mode_name="nonexistent-mode", skills_folder=str(tmp_path)
+    )
+
+    names = [p["name"] for p in params]
+    assert names == ["style"]
+
+
+def test_get_merged_parameters_required_flag_preserved(tmp_path):
+    """get_merged_parameters() preserves the required flag on parameters."""
+    skill_dir = tmp_path / "fact-checker"
+    skill_dir.mkdir()
+    (skill_dir / "SKILL.md").write_text(SKILL_WITH_PARAMETERS)
+
+    import skills_service
+    params = skills_service.get_merged_parameters("fact-checker", skills_folder=str(tmp_path))
+
+    audience = next(p for p in params if p["name"] == "audience")
+    goal = next(p for p in params if p["name"] == "goal")
+    assert audience.get("required") is True
+    assert not goal.get("required")
+
+
+def test_get_merged_parameters_raises_for_unknown_skill(tmp_path):
+    """get_merged_parameters() raises FileNotFoundError for unknown skill."""
+    import skills_service
+    with pytest.raises(FileNotFoundError):
+        skills_service.get_merged_parameters("no-such-skill", skills_folder=str(tmp_path))

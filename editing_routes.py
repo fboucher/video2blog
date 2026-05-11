@@ -112,6 +112,8 @@ def stream_edit():
     data = request.get_json()
     draft_id = data.get('draft_id')
     skill_name = data.get('skill_name')
+    mode_name = data.get('mode_name')
+    parameters = data.get('parameters') or {}
     system_prompt_override = data.get('system_prompt_override')
     transcript_override = data.get('transcript_override')
 
@@ -125,7 +127,7 @@ def stream_edit():
     if not draft:
         abort(404)
 
-    # Use override if provided, otherwise fetch from skill
+    # Build system prompt
     if system_prompt_override:
         system_prompt = system_prompt_override
     else:
@@ -134,10 +136,32 @@ def stream_edit():
         except FileNotFoundError:
             return jsonify({'error': f'Skill not found: {skill_name}'}), 404
 
+        if mode_name:
+            try:
+                skill_data = skills_service.get_skill_data(skill_name)
+                mode_label = next(
+                    (m.get('label', mode_name) for m in (skill_data.get('modes') or [])
+                     if m.get('name') == mode_name),
+                    mode_name
+                )
+                system_prompt = f"Mode: {mode_label}\n\n{system_prompt}"
+            except (FileNotFoundError, ValueError):
+                pass
+
+        # Validate required parameters
+        try:
+            merged_params = skills_service.get_merged_parameters(skill_name, mode_name)
+        except (FileNotFoundError, ValueError):
+            merged_params = []
+
+        for param in merged_params:
+            if param.get('required') and not str(parameters.get(param['name'], '')).strip():
+                return jsonify({'error': f"Required parameter missing: {param['label']}"}), 400
+
     transcript = transcript_override or draft.get('transcript')
 
     def generate():
-        yield from editing_service.stream_edit(system_prompt, draft['content'], transcript)
+        yield from editing_service.stream_edit(system_prompt, draft['content'], transcript, parameters=parameters or None)
 
     return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
