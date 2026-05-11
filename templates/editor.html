@@ -599,6 +599,16 @@
             z-index: 9999;
         }
 
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spinner-icon { animation: spin 1s linear infinite; }
+        .thinking-state {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--ctp-mocha-overlay1);
+            font-style: italic;
+        }
+
         .toast {
             padding: 10px 16px;
             border-radius: 8px;
@@ -1104,9 +1114,19 @@
                 return;
             }
             
-            // Use skill_name: 'custom' — backend uses system_prompt_override when set
-            await runSkillWithPrompt('custom', promptText, 'Custom prompt');
-            customPromptInput.value = '';
+            const sendBtn = document.getElementById('custom-prompt-send');
+            const originalHtml = sendBtn.innerHTML;
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="material-symbols-rounded spinner-icon">autorenew</span> Thinking...';
+            
+            try {
+                // Use skill_name: 'custom' — backend uses system_prompt_override when set
+                await runSkillWithPrompt('custom', promptText, 'Custom prompt');
+                customPromptInput.value = '';
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = originalHtml;
+            }
         }
 
         // ── Save ────────────────────────────────────────────────────
@@ -1366,6 +1386,7 @@
 
                 const bubble = document.createElement('div');
                 bubble.className = 'ai-bubble streaming';
+                bubble.innerHTML = '<div class="thinking-state"><span class="material-symbols-rounded spinner-icon">autorenew</span> AI is processing your request...</div>';
                 outputArea.appendChild(bubble);
                 outputArea.scrollTop = outputArea.scrollHeight;
 
@@ -1373,6 +1394,7 @@
                 const decoder = new TextDecoder();
                 let fullText = '';
                 let buffer = '';
+                let isFirstChunk = true;
 
                 while (true) {
                     const {done, value} = await reader.read();
@@ -1388,6 +1410,10 @@
                                 const chunk = JSON.parse(line.slice(6));
 
                                 if (chunk.delta) {
+                                    if (isFirstChunk) {
+                                        bubble.innerHTML = '';
+                                        isFirstChunk = false;
+                                    }
                                     fullText += chunk.delta;
                                     bubble.textContent = fullText;
                                     outputArea.scrollTop = outputArea.scrollHeight;
