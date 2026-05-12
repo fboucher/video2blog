@@ -9,15 +9,21 @@ Functions:
 
 import os
 import json
+import db_service
 
 
 def is_configured():
-    """Return True when EDITING_API_KEY is set, False otherwise."""
+    """Return True when EDITING_API_KEY is set or an active connection exists, False otherwise."""
+    if db_service.get_active_connection():
+        return True
     return bool(os.environ.get('EDITING_API_KEY'))
 
 
 def get_provider():
     """Return the configured provider: 'anthropic' (default) or 'openai'."""
+    active = db_service.get_active_connection()
+    if active and active.get('provider'):
+        return active['provider'].lower()
     return os.environ.get('EDITING_PROVIDER', 'anthropic').lower()
 
 
@@ -36,13 +42,20 @@ def stream_edit(system_prompt, draft, transcript=None, messages=None, parameters
         SSE data lines: 'data: {"delta": "...", "done": false}\n\n'
         Final chunk: 'data: {"done": true}\n\n'
     """
-    provider = get_provider()
-    api_key = os.environ.get('EDITING_API_KEY')
-    model = os.environ.get(
-        'EDITING_MODEL',
-        'claude-sonnet-4-6' if provider == 'anthropic' else 'gpt-4o-mini'
-    )
-    base_url = os.environ.get('EDITING_BASE_URL')
+    active = db_service.get_active_connection()
+    if active:
+        provider = active.get('provider', 'openai').lower()
+        api_key = active.get('api_key')
+        model = active.get('model_name')
+        base_url = active.get('base_url')
+    else:
+        provider = get_provider()
+        api_key = os.environ.get('EDITING_API_KEY')
+        model = os.environ.get(
+            'EDITING_MODEL',
+            'claude-sonnet-4-6' if provider == 'anthropic' else 'gpt-4o-mini'
+        )
+        base_url = os.environ.get('EDITING_BASE_URL')
 
     # Build the user message
     user_content = f"Draft:\n\n{draft}"

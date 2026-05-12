@@ -951,5 +951,124 @@ def gemini_ask():
     })
 
 
+# ── Settings ─────────────────────────────────────────────────────────
+
+@app.route('/settings')
+def settings_page():
+    """Render the settings page."""
+    return render_template('settings.html', version=APP_VERSION)
+
+
+@app.route('/api/connections', methods=['GET'])
+def get_connections():
+    connections = db_service.list_connections()
+    active_id = db_service.get_active_connection_id()
+    return jsonify({
+        'connections': connections,
+        'active_id': active_id
+    })
+
+
+@app.route('/api/connections', methods=['POST'])
+def create_connection():
+    data = request.get_json()
+    if not data or 'name' not in data or 'provider' not in data or 'api_key' not in data or 'model_name' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+    
+    conn_id = db_service.add_connection(
+        name=data['name'],
+        provider=data['provider'],
+        api_key=data['api_key'],
+        model_name=data['model_name'],
+        base_url=data.get('base_url')
+    )
+    return jsonify({'success': True, 'id': conn_id})
+
+
+@app.route('/api/connections/<int:conn_id>', methods=['PUT'])
+def update_connection(conn_id):
+    data = request.get_json()
+    if not data or 'name' not in data or 'provider' not in data or 'api_key' not in data or 'model_name' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+        
+    success = db_service.update_connection(
+        conn_id=conn_id,
+        name=data['name'],
+        provider=data['provider'],
+        api_key=data['api_key'],
+        model_name=data['model_name'],
+        base_url=data.get('base_url')
+    )
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to update connection'}), 500
+
+
+@app.route('/api/connections/<int:conn_id>', methods=['DELETE'])
+def delete_connection(conn_id):
+    success = db_service.delete_connection(conn_id)
+    if success:
+        return jsonify({'success': True})
+    return jsonify({'error': 'Failed to delete connection'}), 500
+
+
+@app.route('/api/settings/active', methods=['PUT'])
+def set_active_connection():
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid request'}), 400
+        
+    conn_id = data.get('conn_id')
+    db_service.set_active_connection_id(conn_id)
+    return jsonify({'success': True})
+
+
+@app.route('/api/connections/test', methods=['POST'])
+def test_connection():
+    data = request.get_json()
+    if not data or 'provider' not in data or 'api_key' not in data or 'model_name' not in data:
+        return jsonify({'error': 'Missing required fields'}), 400
+        
+    provider = data['provider']
+    api_key = data['api_key']
+    model_name = data['model_name']
+    base_url = data.get('base_url')
+
+    try:
+        if provider == 'openai':
+            from openai import OpenAI
+            kwargs = {"api_key": api_key}
+            if base_url:
+                kwargs["base_url"] = base_url
+            client = OpenAI(**kwargs)
+            # Try a simple completion
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[{"role": "user", "content": "hello"}],
+                max_tokens=5
+            )
+            return jsonify({'success': True, 'message': 'Connection successful'})
+            
+        elif provider == 'anthropic':
+            import anthropic
+            client = anthropic.Anthropic(api_key=api_key)
+            response = client.messages.create(
+                model=model_name,
+                max_tokens=5,
+                messages=[{"role": "user", "content": "hello"}],
+            )
+            return jsonify({'success': True, 'message': 'Connection successful'})
+            
+        else:
+            return jsonify({'error': 'Unknown provider'}), 400
+            
+    except Exception as e:
+        error_msg = str(e)
+        if "404 page not found" in error_msg.lower() or "404" in error_msg:
+            if base_url and not base_url.endswith('/v1') and provider == 'openai':
+                error_msg += " (Hint: For Ollama or LM Studio, ensure your base_url ends with /v1)"
+        return jsonify({'error': f"Connection failed: {error_msg}"}), 400
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5123, debug=True)
