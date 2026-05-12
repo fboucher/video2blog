@@ -75,6 +75,7 @@ def init_db():
             'ALTER TABLE video_sync ADD COLUMN source_url TEXT',
             'ALTER TABLE video_sync ADD COLUMN gemini_file_uri TEXT',
             'ALTER TABLE video_sync ADD COLUMN gemini_uploaded_at TIMESTAMP',
+            'ALTER TABLE video_sync ADD COLUMN gemini_last_verified_at TIMESTAMP',
         ]:
             try:
                 conn.execute(ddl)
@@ -184,17 +185,28 @@ def update_gemini_upload(filename: str, uri: str, timestamp: str) -> None:
     Raises:
         sqlite3.Error: On database failure.
     """
+    now = datetime.now()
     with get_db() as conn:
         conn.execute(
             '''UPDATE video_sync
-               SET gemini_file_uri = ?, gemini_uploaded_at = ?, updated_at = ?
+               SET gemini_file_uri = ?, gemini_uploaded_at = ?, gemini_last_verified_at = ?, updated_at = ?
                WHERE local_filename = ?''',
-            (uri, timestamp, datetime.now(), filename)
+            (uri, timestamp, now, now, filename)
         )
         conn.commit()
 
 
-def get_gemini_file_info(filename: str) -> Optional[Dict[str, str]]:
+def update_gemini_verification(filename: str) -> None:
+    """Update the last verified timestamp for a Gemini file."""
+    with get_db() as conn:
+        conn.execute(
+            'UPDATE video_sync SET gemini_last_verified_at = ?, updated_at = ? WHERE local_filename = ?',
+            (datetime.now(), datetime.now(), filename)
+        )
+        conn.commit()
+
+
+def get_gemini_file_info(filename: str) -> Optional[Dict[str, Any]]:
     """
     Return Gemini upload metadata for a local video, or None if not uploaded.
 
@@ -202,15 +214,19 @@ def get_gemini_file_info(filename: str) -> Optional[Dict[str, str]]:
         filename: Local filename to look up.
 
     Returns:
-        {"uri": str, "uploaded_at": str} or None.
+        {"uri": str, "uploaded_at": str, "last_verified_at": str} or None.
     """
     with get_db() as conn:
         row = conn.execute(
-            'SELECT gemini_file_uri, gemini_uploaded_at FROM video_sync WHERE local_filename = ?',
+            'SELECT gemini_file_uri, gemini_uploaded_at, gemini_last_verified_at FROM video_sync WHERE local_filename = ?',
             (filename,)
         ).fetchone()
         if row and row["gemini_file_uri"]:
-            return {"uri": row["gemini_file_uri"], "uploaded_at": row["gemini_uploaded_at"]}
+            return {
+                "uri": row["gemini_file_uri"],
+                "uploaded_at": row["gemini_uploaded_at"],
+                "last_verified_at": row["gemini_last_verified_at"]
+            }
         return None
 
 
