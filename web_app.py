@@ -206,6 +206,7 @@ def list_all_videos():
                 'duration': duration,
                 'fps': fps,
                 'gemini_uri': gemini_info['uri'] if gemini_info else None,
+                'gemini_last_verified_at': gemini_info.get('last_verified_at') if gemini_info else None,
                 'can_select': True,
                 'can_delete_local': True,
                 'has_draft': draft_info is not None,
@@ -250,6 +251,67 @@ def list_all_videos():
 
     videos.sort(key=lambda v: -v['modified'])
     return jsonify({'videos': videos})
+
+
+@app.route('/api/videos/status/<filename>')
+def get_video_status(filename):
+    """
+    Fetch the latest status of a video from Gemini and perform an integrity check.
+    
+    Returns:
+        JSON with state, duration_match, and metadata.
+    """
+    gemini_info = db_service.get_gemini_file_info(filename)
+    if not gemini_info or not gemini_info.get('uri'):
+        return jsonify({'state': 'not_uploaded'}), 200
+
+    status = gemini_service.get_file_status(gemini_info['uri'])
+    
+    # Handle 404/Expired
+    if status['state'] == 'FAILED' and '404' in (status.get('error') or ''):
+        # Mark as expired in DB
+        db_service.update_gemini_upload(filename, None, None)
+        return jsonify({'state': 'expired'}), 200
+
+    # Integrity Check (Question 1c)
+    integrity = {'match': True, 'margin': 0}
+    if status['state'] == 'ACTIVE' and status['duration_millis'] > 0:
+        # Get local duration
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        local_duration = 0
+        if os.path.exists(filepath):
+            import cv2
+            cap = cv2.VideoCapture(filepath)
+            if cap.isOpened():
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                local_duration = (total_frames / fps) if fps > 0 else 0
+                cap.release()
+        
+        if local_duration > 0:
+            gemini_duration = status['duration_millis'] / 1000.0
+            diff = abs(local_duration - gemini_duration)
+            
+            # The 5% / 2-Second Rule (Question 2)
+            margin = max(2.0, local_duration * 0.05)
+            if diff > margin:
+                integrity = {
+                    'match': False,
+                    'margin': diff,
+                    'local_duration': local_duration,
+                    'gemini_duration': gemini_duration
+                }
+        
+        # Update last verified timestamp (Question 1)
+        db_service.update_gemini_verification(filename)
+
+    return jsonify({
+        'state': status.get('state', 'FAILED'),
+        'duration_millis': status.get('duration_millis', 0),
+        'integrity': integrity,
+        'mime_type': status.get('mime_type'),
+        'last_verified_at': datetime.now().isoformat()
+    })
 
 @app.route('/list-uploads')
 def list_uploads():

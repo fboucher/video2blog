@@ -1224,10 +1224,43 @@ details.card[open] > summary {
     font-size: 0.75rem;
     font-weight: 600;
     white-space: nowrap;
+    position: relative;
+    cursor: help;
 }
 
 .badge .material-symbols-rounded {
     font-size: 14px;
+}
+
+/* Tooltip implementation */
+.badge[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ctp-mocha-surface2);
+    color: var(--ctp-mocha-text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: pre-wrap;
+    width: 200px;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+}
+
+.badge[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: var(--ctp-mocha-surface2);
+    z-index: 1000;
+    pointer-events: none;
 }
 
 .badge-green {

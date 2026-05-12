@@ -196,6 +196,46 @@ async function loadAllVideos() {
     }
 }
 
+// Status tracking for polling
+const pollingVideos = new Set();
+
+async function checkVideoStatus(filename) {
+    if (pollingVideos.has(filename)) return;
+    pollingVideos.add(filename);
+
+    try {
+        const response = await fetch(`/api/videos/status/${filename}`);
+        const data = await response.json();
+        
+        const videoElement = document.querySelector(`.unified-video-item[data-filename="${filename}"]`);
+        if (videoElement) {
+            const badgeContainer = videoElement.querySelector('.badge-container');
+            if (badgeContainer) {
+                badgeContainer.innerHTML = getStatusBadge({
+                    gemini_cache_status: data.state.toLowerCase(),
+                    integrity: data.integrity,
+                    gemini_last_verified_at: data.last_verified_at
+                });
+            }
+            
+            if (data.state === 'PROCESSING') {
+                setTimeout(() => {
+                    pollingVideos.delete(filename);
+                    checkVideoStatus(filename);
+                }, 10000);
+            } else {
+                pollingVideos.delete(filename);
+                loadAllVideos();
+            }
+        } else {
+            pollingVideos.delete(filename);
+        }
+    } catch (error) {
+        console.error('Status check failed:', error);
+        pollingVideos.delete(filename);
+    }
+}
+
 function displayUnifiedVideoList(videos) {
     videosList.innerHTML = videos.map(video => {
         const sourceIcons = {
@@ -203,32 +243,33 @@ function displayUnifiedVideoList(videos) {
             'url': { icon: 'language', color: 'var(--ctp-mocha-lavender)', title: 'URL Video — Q&A Ready' }
         };
 
-        // Default can_select to true when the backend omits it — only disable when explicitly false
         const canSelect = video.can_select !== false;
         const videoSource = video.source || 'local_only';
-        
         const sourceInfo = sourceIcons[videoSource] || { icon: 'help', color: 'var(--ctp-mocha-overlay0)', title: 'Unknown Source' };
-        const statusBadge = getStatusBadge(video);
-        const urlBadge = videoSource === 'url' ? `
-            <span class="badge badge-lavender" title="URL video is Q&A-ready. Frame extraction will download the video.">
-                <span class="material-symbols-rounded">language</span>
-                URL video — Q&A ready
-            </span>
-        ` : '';
+        
+        const filename = video.local_filename || video.filename;
+        if (video.gemini_cache_status === 'processing') {
+            checkVideoStatus(filename);
+        }
         
         return `
-        <div class="unified-video-item ${!canSelect ? 'disabled' : ''}" data-video-id="${video.id}" data-video-source="${videoSource}">
+        <div class="unified-video-item ${!canSelect ? 'disabled' : ''}" 
+             data-video-id="${video.id}" 
+             data-video-source="${videoSource}"
+             data-filename="${filename}">
             <div class="video-item-header">
                 <span class="sync-icon ${videoSource}" title="${sourceInfo.title}">
                     <span class="material-symbols-rounded" style="color: ${sourceInfo.color};">${sourceInfo.icon}</span>
                 </span>
                 <div class="video-name">${escapeHtml(video.name)}</div>
-                ${statusBadge}
-                ${urlBadge}
+                <div class="badge-container">
+                    ${getStatusBadge(video)}
+                </div>
             </div>
             <div class="video-item-meta">
                 ${video.duration ? `<span>${formatDuration(video.duration)}</span>` : ''}
                 ${video.size ? `<span>${formatFileSize(video.size)}</span>` : ''}
+                ${video.gemini_last_verified_at ? `<span style="font-size: 0.7rem; opacity: 0.7;">Verified: ${new Date(video.gemini_last_verified_at).toLocaleTimeString()}</span>` : ''}
             </div>
             <div class="video-item-actions">
                 ${canSelect ? `
@@ -242,21 +283,20 @@ function displayUnifiedVideoList(videos) {
                         Select
                     </button>
                 `}
+                <button class="file-action-btn" onclick="checkVideoStatus('${filename}')" title="Manual Sync with Gemini">
+                    <span class="material-symbols-rounded">sync</span>
+                    Sync
+                </button>
                 ${video.has_draft ? `
                     <button class="file-action-btn" onclick="window.location.href='/editor?draft_id=${video.draft_id}'" title="Open existing draft in editor">
                         <span class="material-symbols-rounded">edit_note</span>
                         Edit
                     </button>
-                ` : `
-                    <button class="file-action-btn" disabled title="Generate a blog post first, then edit it here">
-                        <span class="material-symbols-rounded">edit_note</span>
-                        Edit
-                    </button>
-                `}
+                ` : ''}
                 ${(video.gemini_cache_status === 'expired' || video.gemini_cache_status === 'not_uploaded') ? `
                     <button class="file-action-btn upload-gemini-btn" onclick='uploadToGemini(${JSON.stringify(video).replace(/'/g, "&#39;")})' title="Upload to Gemini cache">
                         <span class="material-symbols-rounded">cloud_upload</span>
-                        Upload to Gemini
+                        Upload
                     </button>
                 ` : ''}
                 ${video.can_delete_local ? `
@@ -271,25 +311,38 @@ function displayUnifiedVideoList(videos) {
 }
 
 function getStatusBadge(video) {
-    if (!video.gemini_cache_status) return '';
+    const status = video.gemini_cache_status || 'not_uploaded';
     
     const badges = {
         'fresh': { class: 'badge-green', text: 'Ready', icon: 'check_circle' },
-        'expired': { class: 'badge-red', text: 'Expired', icon: 'schedule' },
-        'not_uploaded': { class: 'badge-gray', text: 'Not uploaded', icon: 'cloud_upload' }
+        'active': { class: 'badge-green', text: 'Ready', icon: 'check_circle' },
+        'processing': { class: 'badge-yellow', text: 'Indexing...', icon: 'hourglass_empty' },
+        'expired': { class: 'badge-red', text: 'Expired', icon: 'history' },
+        'not_uploaded': { class: 'badge-gray', text: 'Offline', icon: 'cloud_off' },
+        'failed': { class: 'badge-red', text: 'Failed', icon: 'error' }
     };
     
-    const badge = badges[video.gemini_cache_status] || badges['not_uploaded'];
-    let badgeText = badge.text;
+    const badge = badges[status] || badges['not_uploaded'];
+    let tooltip = `Gemini status: ${status}`;
     
-    if (video.gemini_cache_status === 'fresh' && video.expires_in_hours) {
-        badgeText = `Ready (${video.expires_in_hours}h)`;
+    if (video.integrity && video.integrity.match === false) {
+        return `
+            <span class="badge badge-red" data-tooltip="Integrity Check Failed:\nLocal: ${video.integrity.local_duration.toFixed(1)}s\nGemini: ${video.integrity.gemini_duration.toFixed(1)}s\nAI might miss parts of this video.">
+                <span class="material-symbols-rounded">warning</span>
+                Partial
+            </span>
+        `;
+    }
+
+    if (status === 'active' || status === 'fresh') {
+        tooltip = "Video is indexed and ready for AI reasoning.";
+        if (video.expires_in_hours) tooltip += `\nExpires in ~${video.expires_in_hours} hours.`;
     }
     
     return `
-        <span class="badge ${badge.class}">
+        <span class="badge ${badge.class}" data-tooltip="${tooltip}">
             <span class="material-symbols-rounded">${badge.icon}</span>
-            ${badgeText}
+            ${badge.text}
         </span>
     `;
 }

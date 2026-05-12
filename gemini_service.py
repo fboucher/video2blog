@@ -52,9 +52,11 @@ def upload_video(local_path: str) -> str:
     client = _client()
     uploaded = client.files.upload(file=local_path)
 
-    # Wait for the file to finish processing
-    max_wait = 300  # seconds
+    # Wait for the file to finish processing and metadata to be populated
+    max_wait = 600  # seconds (increased to 10 mins)
     waited = 0
+    
+    # 1. Wait for ACTIVE state
     while uploaded.state.name == "PROCESSING" and waited < max_wait:
         time.sleep(5)
         waited += 5
@@ -65,7 +67,65 @@ def upload_video(local_path: str) -> str:
             f"Gemini file upload did not become ACTIVE (state={uploaded.state.name}): {local_path}"
         )
 
+    # 2. Grace period for metadata population (Question 1a)
+    metadata_waited = 0
+    max_metadata_wait = 30
+    while metadata_waited < max_metadata_wait:
+        duration = 0
+        if hasattr(uploaded, 'video_metadata') and uploaded.video_metadata:
+            duration = getattr(uploaded.video_metadata, 'duration_millis', 0)
+        
+        if duration > 0:
+            break
+            
+        time.sleep(5)
+        metadata_waited += 5
+        uploaded = client.files.get(name=uploaded.name)
+
     return uploaded.uri
+
+
+def get_file_status(file_uri: str) -> dict:
+    """
+    Fetch current status and metadata for a file from Gemini.
+
+    Args:
+        file_uri: The URI returned by upload_video (e.g. "files/abc123").
+
+    Returns:
+        {
+            "state": "ACTIVE" | "PROCESSING" | "FAILED",
+            "duration_millis": int,
+            "mime_type": str,
+            "error": str | None
+        }
+    """
+    if not is_configured():
+        return {"state": "FAILED", "error": "Not configured"}
+
+    client = _client()
+    try:
+        # The Files API name is the last path segment
+        file_name = file_uri.split("/")[-1]
+        uploaded = client.files.get(name=f"files/{file_name}")
+        
+        duration = 0
+        if hasattr(uploaded, 'video_metadata') and uploaded.video_metadata:
+            duration = getattr(uploaded.video_metadata, 'duration_millis', 0)
+
+        return {
+            "state": uploaded.state.name,
+            "duration_millis": int(duration),
+            "mime_type": uploaded.mime_type,
+            "error": None
+        }
+    except Exception as e:
+        return {
+            "state": "FAILED",
+            "duration_millis": 0,
+            "mime_type": None,
+            "error": str(e)
+        }
 
 
 def _build_history(messages: list) -> list:
