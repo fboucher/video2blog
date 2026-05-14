@@ -31,7 +31,12 @@ MAX_FILE_SIZE = 500 * 1024 * 1024  # 500 MB
 GEMINI_CACHE_TTL_HOURS = 48
 
 # Flask app configuration
-app = Flask(__name__, template_folder="templates", static_folder="static")
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+app = Flask(
+    __name__,
+    template_folder=os.path.join(_BASE_DIR, "templates"),
+    static_folder=os.path.join(_BASE_DIR, "static"),
+)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["OUTPUT_FOLDER"] = OUTPUT_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_SIZE
