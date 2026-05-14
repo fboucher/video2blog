@@ -82,13 +82,15 @@ Rewrite for flow.
 
 # ── list_skills ───────────────────────────────────────────────────────────────
 
+
 def test_list_skills_returns_list_of_dicts(tmp_path):
     """list_skills() with a valid SKILL.md returns a list containing at least one dict."""
     skill_dir = tmp_path / "summarize"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(VALID_SKILL_MD)
 
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills(str(tmp_path))
 
     assert isinstance(result, list)
@@ -107,7 +109,8 @@ def test_list_skills_multiple_skills(tmp_path):
         d.mkdir()
         (d / "SKILL.md").write_text(content)
 
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills(str(tmp_path))
 
     assert len(result) == 2
@@ -126,7 +129,8 @@ def test_list_skills_skips_malformed_files_without_crashing(tmp_path):
     bad_dir.mkdir()
     (bad_dir / "SKILL.md").write_text(MALFORMED_FRONT_MATTER)
 
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills(str(tmp_path))
 
     # Should return only the valid skill, not crash
@@ -141,7 +145,8 @@ def test_list_skills_skips_files_without_front_matter(tmp_path):
     d.mkdir()
     (d / "SKILL.md").write_text(SKILL_WITHOUT_FRONT_MATTER)
 
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills(str(tmp_path))
 
     assert isinstance(result, list)
@@ -150,7 +155,8 @@ def test_list_skills_skips_files_without_front_matter(tmp_path):
 
 def test_list_skills_empty_folder_returns_empty_list(tmp_path):
     """list_skills() returns an empty list when SKILLS_FOLDER has no SKILL.md files."""
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills(str(tmp_path))
     assert result == []
 
@@ -163,7 +169,8 @@ def test_list_skills_uses_env_var_default(monkeypatch, tmp_path):
 
     monkeypatch.setenv("SKILLS_FOLDER", str(tmp_path))
 
-    import skills_service
+    from video2blog import skills_service
+
     result = skills_service.list_skills()
 
     assert isinstance(result, list)
@@ -172,13 +179,15 @@ def test_list_skills_uses_env_var_default(monkeypatch, tmp_path):
 
 # ── get_skill_prompt ──────────────────────────────────────────────────────────
 
+
 def test_get_skill_prompt_returns_body_without_front_matter(tmp_path):
     """get_skill_prompt() returns the prompt body with YAML front matter stripped."""
     skill_dir = tmp_path / "summarize"
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(VALID_SKILL_MD)
 
-    import skills_service
+    from video2blog import skills_service
+
     body = skills_service.get_skill_prompt("summarize", str(tmp_path))
 
     assert body is not None
@@ -191,7 +200,8 @@ def test_get_skill_prompt_returns_body_without_front_matter(tmp_path):
 
 def test_get_skill_prompt_returns_none_for_unknown_skill(tmp_path):
     """get_skill_prompt() raises FileNotFoundError when the named skill does not exist."""
-    import skills_service
+    from video2blog import skills_service
+
     with pytest.raises(FileNotFoundError):
         skills_service.get_skill_prompt("nonexistent-skill", str(tmp_path))
 
@@ -202,15 +212,15 @@ def test_get_skill_prompt_body_is_stripped(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(VALID_SKILL_MD)
 
-    import skills_service
+    from video2blog import skills_service
+
     body = skills_service.get_skill_prompt("summarize", str(tmp_path))
 
-    assert body == body.strip(), (
-        "get_skill_prompt() should return a stripped string"
-    )
+    assert body == body.strip(), "get_skill_prompt() should return a stripped string"
 
 
 # ── get_merged_parameters ──────────────────────────────────────────────────────
+
 
 def test_get_merged_parameters_skill_level_only(tmp_path):
     """get_merged_parameters() returns skill-level params when no mode is given."""
@@ -218,8 +228,11 @@ def test_get_merged_parameters_skill_level_only(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(SKILL_WITH_PARAMETERS)
 
-    import skills_service
-    params = skills_service.get_merged_parameters("fact-checker", skills_folder=str(tmp_path))
+    from video2blog import skills_service
+
+    params = skills_service.get_merged_parameters(
+        "fact-checker", skills_folder=str(tmp_path)
+    )
 
     names = [p["name"] for p in params]
     assert "audience" in names
@@ -232,14 +245,15 @@ def test_get_merged_parameters_merges_skill_and_mode(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
 
-    import skills_service
+    from video2blog import skills_service
+
     params = skills_service.get_merged_parameters(
         "text-editor", mode_name="rewrite-section", skills_folder=str(tmp_path)
     )
 
     names = [p["name"] for p in params]
-    assert "style" in names       # skill-level
-    assert "section" in names     # mode-level
+    assert "style" in names  # skill-level
+    assert "section" in names  # mode-level
 
 
 def test_get_merged_parameters_skill_level_first(tmp_path):
@@ -248,7 +262,8 @@ def test_get_merged_parameters_skill_level_first(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
 
-    import skills_service
+    from video2blog import skills_service
+
     params = skills_service.get_merged_parameters(
         "text-editor", mode_name="rewrite-section", skills_folder=str(tmp_path)
     )
@@ -263,8 +278,11 @@ def test_get_merged_parameters_no_params_returns_empty(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(VALID_SKILL_MD)
 
-    import skills_service
-    params = skills_service.get_merged_parameters("summarize", skills_folder=str(tmp_path))
+    from video2blog import skills_service
+
+    params = skills_service.get_merged_parameters(
+        "summarize", skills_folder=str(tmp_path)
+    )
 
     assert params == []
 
@@ -275,7 +293,8 @@ def test_get_merged_parameters_unmatched_mode_returns_skill_level_only(tmp_path)
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(SKILL_WITH_MODES_AND_PARAMS)
 
-    import skills_service
+    from video2blog import skills_service
+
     params = skills_service.get_merged_parameters(
         "text-editor", mode_name="nonexistent-mode", skills_folder=str(tmp_path)
     )
@@ -290,8 +309,11 @@ def test_get_merged_parameters_required_flag_preserved(tmp_path):
     skill_dir.mkdir()
     (skill_dir / "SKILL.md").write_text(SKILL_WITH_PARAMETERS)
 
-    import skills_service
-    params = skills_service.get_merged_parameters("fact-checker", skills_folder=str(tmp_path))
+    from video2blog import skills_service
+
+    params = skills_service.get_merged_parameters(
+        "fact-checker", skills_folder=str(tmp_path)
+    )
 
     audience = next(p for p in params if p["name"] == "audience")
     goal = next(p for p in params if p["name"] == "goal")
@@ -301,6 +323,9 @@ def test_get_merged_parameters_required_flag_preserved(tmp_path):
 
 def test_get_merged_parameters_raises_for_unknown_skill(tmp_path):
     """get_merged_parameters() raises FileNotFoundError for unknown skill."""
-    import skills_service
+    from video2blog import skills_service
+
     with pytest.raises(FileNotFoundError):
-        skills_service.get_merged_parameters("no-such-skill", skills_folder=str(tmp_path))
+        skills_service.get_merged_parameters(
+            "no-such-skill", skills_folder=str(tmp_path)
+        )

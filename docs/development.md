@@ -29,14 +29,16 @@ All PRs must pass the existing test suite before merging.
 
 ```
 video2blog/
-├── cli.py                  # CLI entry point for keyframe extraction
-├── keyframe_extractor.py   # Keyframe extraction library
-├── web_app.py              # Flask web application (routes, endpoints)
-├── db_service.py           # SQLite database service
-├── gemini_service.py       # Google Gemini API integration
-├── editing_service.py      # AI editing provider abstraction
-├── editing_routes.py       # Editor API routes
-├── skills_service.py       # Skills loading and execution
+├── video2blog/             # Python package (source code)
+│   ├── __init__.py
+│   ├── cli.py                  # CLI entry point for keyframe extraction
+│   ├── keyframe_extractor.py   # Keyframe extraction library
+│   ├── web_app.py              # Flask web application (routes, endpoints)
+│   ├── db_service.py           # SQLite database service
+│   ├── gemini_service.py       # Google Gemini API integration
+│   ├── editing_service.py      # AI editing provider abstraction
+│   ├── editing_routes.py       # Editor API routes
+│   └── skills_service.py       # Skills loading and execution
 ├── templates/              # Jinja2 HTML templates
 │   ├── index.html
 │   ├── editor.html
@@ -48,6 +50,7 @@ video2blog/
 │   └── <skill-name>/SKILL.md
 ├── tests/                  # Python test suite
 ├── docs/                   # Documentation
+├── pyproject.toml
 ├── Dockerfile
 ├── docker-compose.yml
 └── requirements.txt

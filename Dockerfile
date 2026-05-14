@@ -21,24 +21,17 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the application code
-COPY keyframe_extractor.py .
-COPY web_app.py .
-COPY gemini_service.py .
-COPY db_service.py .
-COPY editing_routes.py .
-COPY editing_service.py .
-COPY skills_service.py .
+# Copy the application package
+COPY video2blog/ ./video2blog/
 COPY templates/ ./templates/
 COPY static/ ./static/
 COPY skills/ ./skills/
 
 # Create directories for uploads, output, and database, and make scripts executable in one layer
-RUN mkdir -p /app/uploads /app/output /app/data && \
-    chmod +x keyframe_extractor.py web_app.py
+RUN mkdir -p /app/uploads /app/output /app/data
 
 # Expose port for Flask
 EXPOSE 5123
 
 # Set default command to run web app
-CMD ["python", "web_app.py"]
+CMD ["python", "-m", "video2blog.web_app"]

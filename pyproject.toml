@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "video2blog"
+version = "0.8.0"
+description = "Transform videos into blog posts with AI"
+requires-python = ">=3.11"
+dependencies = [
+    "opencv-python-headless==4.8.1.78",
+    "numpy==1.24.3",
+    "flask==3.0.0",
+    "werkzeug==3.0.1",
+    "python-dotenv==1.0.0",
+    "requests",
+    "google-genai",
+    "yt-dlp",
+    "anthropic",
+    "openai",
+    "pyyaml>=6.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["video2blog*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

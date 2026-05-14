@@ -21,8 +21,7 @@ sys.modules["google.genai"] = _mock_genai
 
 # ── Mock cv2 / numpy before any test module imports them ────────────────────
 # opencv-python (cv2) is not installed in every test environment.
-# keyframe_extractor.py imports cv2/numpy at module level; web_app imports
-# keyframe_extractor, so any test that imports web_app needs these mocks.
+# video2blog.keyframe_extractor and video2blog.web_app import cv2/numpy
 
 sys.modules.setdefault("cv2", MagicMock())
 sys.modules.setdefault("numpy", MagicMock())

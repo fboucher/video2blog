@@ -11,11 +11,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-import keyframe_extractor
-from keyframe_extractor import ExtractionProgress, extract_keyframes
+import video2blog.keyframe_extractor
+from video2blog.keyframe_extractor import ExtractionProgress, extract_keyframes
 
 # cv2 is a MagicMock injected by conftest.py
 import cv2
+
+# shorten for cleaner access
+kf = video2blog.keyframe_extractor
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -270,7 +273,7 @@ def test_detect_keyframe_timestamps_returns_list_of_floats(tmp_path):
     cv2.calcHist.return_value = MagicMock()
     cv2.cvtColor.return_value = MagicMock()
 
-    timestamps = keyframe_extractor.detect_keyframe_timestamps(
+    timestamps = kf.detect_keyframe_timestamps(
         video_path="fake.mp4",
         threshold=0.3,
         max_keyframes=10,
@@ -289,7 +292,7 @@ def test_detect_keyframe_timestamps_respects_max_keyframes(tmp_path):
     cv2.calcHist.return_value = MagicMock()
     cv2.cvtColor.return_value = MagicMock()
 
-    timestamps = keyframe_extractor.detect_keyframe_timestamps(
+    timestamps = kf.detect_keyframe_timestamps(
         video_path="fake.mp4",
         threshold=0.3,
         max_keyframes=5,
@@ -307,7 +310,7 @@ def test_detect_keyframe_timestamps_no_writes(tmp_path):
     cv2.calcHist.return_value = MagicMock()
     cv2.cvtColor.return_value = MagicMock()
 
-    keyframe_extractor.detect_keyframe_timestamps("fake.mp4")
+    kf.detect_keyframe_timestamps("fake.mp4")
 
     assert not cv2.imwrite.called
 

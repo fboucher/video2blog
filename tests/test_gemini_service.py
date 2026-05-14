@@ -11,10 +11,11 @@ from unittest.mock import MagicMock, patch
 
 # conftest.py injects a MagicMock for google / google.genai before
 # collection, so this import succeeds even without the real package installed.
-import gemini_service  # written by Ripley on squad/22
+from video2blog import gemini_service  # written by Ripley on squad/22
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+
 
 def _chat_mock(text="mock response"):
     """
@@ -32,6 +33,7 @@ def _chat_mock(text="mock response"):
 
 # ── is_configured ────────────────────────────────────────────────────────────
 
+
 def test_is_configured_false_when_no_api_key():
     env = {k: v for k, v in os.environ.items() if k != "GEMINI_API_KEY"}
     with patch.dict(os.environ, env, clear=True):
@@ -45,6 +47,7 @@ def test_is_configured_true_when_api_key_set():
 
 # ── get_model ────────────────────────────────────────────────────────────────
 
+
 def test_get_model_returns_default():
     env = {k: v for k, v in os.environ.items() if k != "GEMINI_MODEL"}
     with patch.dict(os.environ, env, clear=True):
@@ -57,6 +60,7 @@ def test_get_model_respects_env_override():
 
 
 # ── upload_video ─────────────────────────────────────────────────────────────
+
 
 def test_upload_video_calls_files_api():
     """
@@ -72,9 +76,11 @@ def test_upload_video_calls_files_api():
     mock_client = MagicMock()
     mock_client.files.upload.return_value = fake_file
 
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("os.path.exists", return_value=True), \
-         patch("gemini_service._client", return_value=mock_client):
+    with (
+        patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+        patch("os.path.exists", return_value=True),
+        patch("video2blog.gemini_service._client", return_value=mock_client),
+    ):
         result = gemini_service.upload_video("/app/uploads/video.mp4")
 
     mock_client.files.upload.assert_called_once_with(file="/app/uploads/video.mp4")
@@ -82,6 +88,7 @@ def test_upload_video_calls_files_api():
 
 
 # ── upload_from_url ──────────────────────────────────────────────────────────
+
 
 def test_upload_from_url_returns_url():
     """upload_from_url must return the URL unchanged — no API call is made."""
@@ -92,6 +99,7 @@ def test_upload_from_url_returns_url():
 
 # ── delete_file ──────────────────────────────────────────────────────────────
 
+
 def test_delete_file_calls_files_delete():
     """
     delete_file must call client.files.delete with 'files/<name>' derived from
@@ -100,8 +108,10 @@ def test_delete_file_calls_files_delete():
     mock_client = MagicMock()
 
     uri = "files/abc123"
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("gemini_service._client", return_value=mock_client):
+    with (
+        patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+        patch("video2blog.gemini_service._client", return_value=mock_client),
+    ):
         result = gemini_service.delete_file(uri)
 
     mock_client.files.delete.assert_called_once_with(name="files/abc123")
@@ -109,6 +119,7 @@ def test_delete_file_calls_files_delete():
 
 
 # ── generate_blog ────────────────────────────────────────────────────────────
+
 
 def test_generate_blog_returns_dict_with_draft_and_timestamps():
     """
@@ -123,8 +134,10 @@ def test_generate_blog_returns_dict_with_draft_and_timestamps():
     file_ref = "https://example.com/video.mp4"
     messages = [{"role": "user", "parts": ["Write a blog post about this video."]}]
 
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("gemini_service._client", return_value=mock_client):
+    with (
+        patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+        patch("video2blog.gemini_service._client", return_value=mock_client),
+    ):
         result = gemini_service.generate_blog(file_ref, messages)
 
     assert isinstance(result, dict), "generate_blog must return a dict"
@@ -136,6 +149,7 @@ def test_generate_blog_returns_dict_with_draft_and_timestamps():
 
 # ── ask ──────────────────────────────────────────────────────────────────────
 
+
 def test_ask_returns_string():
     """ask must return the model's text response as a plain string."""
     mock_client, chat_mock, _ = _chat_mock(text="  The video shows a product demo.  ")
@@ -143,8 +157,10 @@ def test_ask_returns_string():
     file_ref = "https://example.com/keynote.mp4"
     messages = [{"role": "user", "parts": ["What is in the video?"]}]
 
-    with patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}), \
-         patch("gemini_service._client", return_value=mock_client):
+    with (
+        patch.dict(os.environ, {"GEMINI_API_KEY": "test-key"}),
+        patch("video2blog.gemini_service._client", return_value=mock_client),
+    ):
         result = gemini_service.ask(file_ref, messages)
 
     assert isinstance(result, str), "ask must return a string"
