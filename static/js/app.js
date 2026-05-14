@@ -403,32 +403,28 @@ async function selectVideo(video) {
     resultsSection.style.display = 'none';
     
     // Handle params section differently for URL vs local videos
-    if (video.source === 'url') {
-        // Hide the normal params and show URL-specific message
-        const timestampParams = document.getElementById('timestamp-params');
-        if (timestampParams) {
-            timestampParams.style.display = 'none';
-        }
-        // Update extract button for URL videos
-        const originalExtractBtn = document.getElementById('extract-btn');
-        if (originalExtractBtn) {
-            originalExtractBtn.disabled = false;
+    const timestampParams = document.getElementById('timestamp-params');
+    if (timestampParams) {
+        timestampParams.style.display = 'grid';
+    }
+
+    // Show/hide Auto-Detect based on video source
+    const autoDetectBtn = document.getElementById('auto-detect-btn');
+    if (autoDetectBtn) {
+        autoDetectBtn.style.display = video.source === 'url' ? 'none' : '';
+    }
+
+    // Update extract button text based on source
+    const originalExtractBtn = document.getElementById('extract-btn');
+    if (originalExtractBtn) {
+        originalExtractBtn.disabled = false;
+        if (video.source === 'url') {
             originalExtractBtn.innerHTML = `
                 <span class="material-symbols-rounded">download</span>
                 Extract Frames (downloads video)
             `;
             originalExtractBtn.title = 'Download the video via yt-dlp and extract keyframes';
-        }
-    } else {
-        // Show normal params for local videos
-        const timestampParams = document.getElementById('timestamp-params');
-        if (timestampParams) {
-            timestampParams.style.display = 'grid';
-        }
-        // Reset extract button
-        const originalExtractBtn = document.getElementById('extract-btn');
-        if (originalExtractBtn) {
-            originalExtractBtn.disabled = false;
+        } else {
             originalExtractBtn.innerHTML = 'Extract Frames';
             originalExtractBtn.title = '';
         }
