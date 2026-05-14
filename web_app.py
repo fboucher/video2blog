@@ -16,7 +16,7 @@ from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, send_file, url_for
 from werkzeug.utils import secure_filename
 
-from keyframe_extractor import extract_keyframes
+from keyframe_extractor import extract_keyframes, detect_keyframe_timestamps
 import db_service
 import gemini_service
 from editing_routes import editing_bp
@@ -720,7 +720,7 @@ def extract():
 
         threshold = float(data.get("threshold", 0.3))
         max_frames = int(data.get("max_frames", 100))
-        frames_per_point = int(data.get("frames_per_timestamp", 3))
+        frames_per_point = int(data.get("frames_per_timestamp", 1))
 
         results = extract_keyframes(
             video_path=filepath,
@@ -749,6 +749,44 @@ def extract():
             }
         )
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/preview-keyframes", methods=["POST"])
+def preview_keyframes():
+    """Run scene detection and return suggested keyframe timestamps.
+
+    Expects JSON body: {"filepath": str, "threshold": float (optional)}
+
+    Returns:
+        JSON: {"timestamps": [1.23, 5.67, ...], "count": int}
+    """
+    data = request.get_json()
+
+    if not data or "filepath" not in data:
+        return jsonify({"error": "filepath is required"}), 400
+
+    filepath = data["filepath"]
+    if not os.path.exists(filepath):
+        return jsonify({"error": "Video file not found"}), 404
+
+    threshold = float(data.get("threshold", 0.3))
+    max_frames = int(data.get("max_frames", 100))
+
+    try:
+        timestamps = detect_keyframe_timestamps(
+            video_path=filepath,
+            threshold=threshold,
+            max_keyframes=max_frames,
+        )
+        return jsonify(
+            {
+                "success": True,
+                "timestamps": timestamps,
+                "count": len(timestamps),
+            }
+        )
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -967,6 +1005,7 @@ def gemini_generate_blog():
     draft = result.get("draft", "")
     timestamps = result.get("timestamps", [])
     output_dir = os.path.join(app.config["OUTPUT_FOLDER"], Path(filename).stem)
+    frames_per_ts = int(data.get("frames_per_timestamp", 1))
 
     try:
         strategy = "timestamp" if timestamps else "scene"
@@ -975,6 +1014,7 @@ def gemini_generate_blog():
             video_path=filepath,
             output_dir=output_dir,
             strategy=strategy,
+            frames_per_interval=frames_per_ts,
             timestamps=ts_list,
         )
         source = "gemini-timestamps" if timestamps else "scene-detection"

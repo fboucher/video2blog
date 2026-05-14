@@ -253,6 +253,65 @@ def test_metadata_json_saved(tmp_path):
     assert data["keyframes_extracted"] > 0
 
 
+# ── Preview / detect_keyframe_timestamps ───────────────────────────────────
+
+
+def test_detect_keyframe_timestamps_returns_list_of_floats(tmp_path):
+    cap = _make_cap_mock(total_frames=300, fps=30.0)
+    cv2.VideoCapture.return_value = cap
+
+    call_idx = [0]
+
+    def _compareHist(h1, h2, method):
+        call_idx[0] += 1
+        return 0.5 if call_idx[0] % 12 == 0 else 0.95
+
+    cv2.compareHist.side_effect = _compareHist
+    cv2.calcHist.return_value = MagicMock()
+    cv2.cvtColor.return_value = MagicMock()
+
+    timestamps = keyframe_extractor.detect_keyframe_timestamps(
+        video_path="fake.mp4",
+        threshold=0.3,
+        max_keyframes=10,
+        frame_sampling_interval=5,
+    )
+
+    assert isinstance(timestamps, list)
+    assert all(isinstance(ts, float) for ts in timestamps)
+    assert len(timestamps) > 0
+
+
+def test_detect_keyframe_timestamps_respects_max_keyframes(tmp_path):
+    cap = _make_cap_mock(total_frames=1000, fps=30.0)
+    cv2.VideoCapture.return_value = cap
+    cv2.compareHist.return_value = 0.1  # Always different
+    cv2.calcHist.return_value = MagicMock()
+    cv2.cvtColor.return_value = MagicMock()
+
+    timestamps = keyframe_extractor.detect_keyframe_timestamps(
+        video_path="fake.mp4",
+        threshold=0.3,
+        max_keyframes=5,
+        frame_sampling_interval=1,
+    )
+
+    assert len(timestamps) == 5
+
+
+def test_detect_keyframe_timestamps_no_writes(tmp_path):
+    """detect_keyframe_timestamps must never call cv2.imwrite."""
+    cap = _make_cap_mock(total_frames=300, fps=30.0)
+    cv2.VideoCapture.return_value = cap
+    cv2.compareHist.return_value = 0.5
+    cv2.calcHist.return_value = MagicMock()
+    cv2.cvtColor.return_value = MagicMock()
+
+    keyframe_extractor.detect_keyframe_timestamps("fake.mp4")
+
+    assert not cv2.imwrite.called
+
+
 # ── Error handling ─────────────────────────────────────────────────────────────
 
 

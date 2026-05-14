@@ -179,6 +179,80 @@ def extract_keyframes(
     return results
 
 
+def detect_keyframe_timestamps(
+    video_path: str | Path,
+    threshold: float = 0.3,
+    max_keyframes: int = 100,
+    frame_sampling_interval: int = 5,
+) -> list[float]:
+    """Detect scene-change timestamps without extracting frames.
+
+    Uses the same histogram-based scene detection as
+    strategy="scene" but returns only the timestamps, no files.
+
+    Args:
+        video_path: Path to the input video file.
+        threshold: Scene detection threshold (0.0-1.0). Default is 0.3.
+        max_keyframes: Maximum number of timestamps to return. Default is 100.
+        frame_sampling_interval: Process every Nth frame. Default is 5.
+
+    Returns:
+        List of timestamps (in seconds) where scene changes were detected.
+
+    Raises:
+        ValueError: If video file cannot be opened or threshold is invalid.
+    """
+    if not 0.0 <= threshold <= 1.0:
+        raise ValueError("threshold must be between 0.0 and 1.0")
+
+    video_path = Path(video_path)
+    cap = cv2.VideoCapture(str(video_path))
+    if not cap.isOpened():
+        raise ValueError(f"Unable to open video file: {video_path}")
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    prev_frame = None
+    frame_count = 0
+    saved_count = 0
+    timestamps: list[float] = []
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            break
+
+        frame_count += 1
+        if frame_count % frame_sampling_interval != 0:
+            continue
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        if prev_frame is not None:
+            hist_current = cv2.calcHist([gray], [0], None, [256], [0, 256])
+            hist_prev = cv2.calcHist([prev_frame], [0], None, [256], [0, 256])
+            cv2.normalize(
+                hist_current, hist_current, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX
+            )
+            cv2.normalize(
+                hist_prev, hist_prev, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX
+            )
+            hist_diff = cv2.compareHist(hist_prev, hist_current, cv2.HISTCMP_CORREL)
+
+            if hist_diff < (1 - threshold) and saved_count < max_keyframes:
+                timestamps.append(frame_count / fps)
+                saved_count += 1
+
+        prev_frame = gray
+
+        if saved_count >= max_keyframes:
+            break
+
+    cap.release()
+    return timestamps
+
+
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 
