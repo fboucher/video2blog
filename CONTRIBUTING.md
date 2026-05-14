@@ -11,25 +11,7 @@ Thanks for your interest in contributing! All contributions are welcome — bug 
 
 ## Development Setup
 
-```bash
-# Clone and enter the repo
-git clone https://github.com/fboucher/video2blog.git
-cd video2blog
-
-# Copy and fill in your environment variables
-cp .env.example .env
-
-# Run with Docker Compose
-docker compose up --build
-```
-
-## Running Tests
-
-```bash
-python -m pytest tests/ -q
-```
-
-All PRs must pass the existing test suite before merging.
+See [docs/development.md](docs/development.md) for local setup, testing, and project structure.
 
 ## Pull Request Guidelines
 
@@ -49,16 +31,7 @@ skills/
     └── SKILL.md
 ```
 
-```markdown
----
-name: Your Skill Name
-description: One-line description shown in the UI
----
-
-Your system prompt here. This is sent to the AI when a user applies this skill.
-```
-
-See the built-in skills in `skills/` for examples.
+See [docs/skills.md](docs/skills.md) for the full reference.
 
 ## Code Style
 

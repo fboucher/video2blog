@@ -17,10 +17,11 @@ import pytest
 from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
-import db_service
+from video2blog import db_service
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def mem_db():
@@ -32,8 +33,7 @@ def mem_db():
     def patched_get_db():
         yield conn
 
-    with patch.object(db_service, "get_db", patched_get_db), \
-         patch("os.makedirs"):
+    with patch.object(db_service, "get_db", patched_get_db), patch("os.makedirs"):
         db_service.init_db()
         yield conn
 
@@ -43,7 +43,8 @@ def mem_db():
 @pytest.fixture()
 def client(mem_db):
     """Flask test client wired to the in-memory DB."""
-    from web_app import app
+    from video2blog.web_app import app
+
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
@@ -51,65 +52,82 @@ def client(mem_db):
 
 # ── is_configured ─────────────────────────────────────────────────────────────
 
+
 def test_is_configured_false_when_no_api_key(monkeypatch):
     """is_configured() returns False when EDITING_API_KEY is not set."""
     monkeypatch.delenv("EDITING_API_KEY", raising=False)
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.is_configured() is False
 
 
 def test_is_configured_true_when_api_key_set(monkeypatch):
     """is_configured() returns True when EDITING_API_KEY has a non-empty value."""
     monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.is_configured() is True
 
 
 def test_is_configured_false_when_api_key_empty_string(monkeypatch):
     """is_configured() returns False when EDITING_API_KEY is set to empty string."""
     monkeypatch.setenv("EDITING_API_KEY", "")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.is_configured() is False
 
 
 # ── get_provider ──────────────────────────────────────────────────────────────
 
+
 def test_get_provider_returns_anthropic_by_default(monkeypatch):
     """get_provider() returns 'anthropic' when EDITING_PROVIDER is not set."""
     monkeypatch.delenv("EDITING_PROVIDER", raising=False)
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.get_provider() == "anthropic"
 
 
 def test_get_provider_returns_anthropic_when_set(monkeypatch):
     """get_provider() returns 'anthropic' when EDITING_PROVIDER=anthropic."""
     monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.get_provider() == "anthropic"
 
 
 def test_get_provider_returns_openai_when_set(monkeypatch):
     """get_provider() returns 'openai' when EDITING_PROVIDER=openai."""
     monkeypatch.setenv("EDITING_PROVIDER", "openai")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.get_provider() == "openai"
 
 
 def test_get_provider_normalizes_to_lowercase(monkeypatch):
     """get_provider() normalizes the env var value to lowercase."""
     monkeypatch.setenv("EDITING_PROVIDER", "Anthropic")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
-    import editing_service
+    from video2blog import editing_service
+
     assert editing_service.get_provider() == "anthropic"
 
 
 # ── POST /editing/stream — SSE response ───────────────────────────────────────
+
 
 def test_post_editing_stream_returns_sse_content_type(client, mem_db, monkeypatch):
     """POST /editing/stream must return Content-Type: text/event-stream."""
@@ -126,7 +144,9 @@ def test_post_editing_stream_returns_sse_content_type(client, mem_db, monkeypatc
         b'data: {"done": true}\n\n',
     ]
 
-    with patch("editing_service.stream_edit", return_value=iter(mock_chunks)):
+    with patch(
+        "video2blog.editing_service.stream_edit", return_value=iter(mock_chunks)
+    ):
         resp = client.post(
             "/editing/stream",
             json={
@@ -152,16 +172,22 @@ def test_post_editing_stream_yields_valid_json_chunks(client, mem_db, monkeypatc
         b'data: {"done": true}\n\n',
     ]
 
-    with patch("editing_service.stream_edit", return_value=iter(mock_chunks)):
+    with patch(
+        "video2blog.editing_service.stream_edit", return_value=iter(mock_chunks)
+    ):
         resp = client.post(
             "/editing/stream",
-            json={"draft_id": draft_id, "skill_name": "edit-video-blog", "messages": []},
+            json={
+                "draft_id": draft_id,
+                "skill_name": "edit-video-blog",
+                "messages": [],
+            },
         )
 
     raw = resp.data.decode()
     for line in raw.splitlines():
         if line.startswith("data: "):
-            payload = json.loads(line[len("data: "):])
+            payload = json.loads(line[len("data: ") :])
             assert "delta" in payload or "done" in payload, (
                 f"SSE chunk must contain 'delta' or 'done': {payload}"
             )
@@ -179,23 +205,25 @@ def test_post_editing_stream_ends_with_done_true(client, mem_db, monkeypatch):
         b'data: {"done": true}\n\n',
     ]
 
-    with patch("editing_service.stream_edit", return_value=iter(mock_chunks)):
+    with patch(
+        "video2blog.editing_service.stream_edit", return_value=iter(mock_chunks)
+    ):
         resp = client.post(
             "/editing/stream",
-            json={"draft_id": draft_id, "skill_name": "edit-video-blog", "messages": []},
+            json={
+                "draft_id": draft_id,
+                "skill_name": "edit-video-blog",
+                "messages": [],
+            },
         )
 
     raw = resp.data.decode()
     data_lines = [
-        line[len("data: "):]
-        for line in raw.splitlines()
-        if line.startswith("data: ")
+        line[len("data: ") :] for line in raw.splitlines() if line.startswith("data: ")
     ]
     assert len(data_lines) >= 1
     last_chunk = json.loads(data_lines[-1])
-    assert last_chunk.get("done") is True, (
-        "Last SSE chunk must be {\"done\": true}"
-    )
+    assert last_chunk.get("done") is True, 'Last SSE chunk must be {"done": true}'
 
 
 def test_post_editing_stream_requires_draft_id(client, monkeypatch):
@@ -222,6 +250,7 @@ def test_post_editing_stream_returns_503_when_not_configured(client, monkeypatch
 
 # ── POST /editing/stream — parameter handling ─────────────────────────────────
 
+
 def test_post_editing_stream_passes_parameters_to_service(client, mem_db, monkeypatch):
     """POST /editing/stream forwards parameters dict to editing_service.stream_edit."""
     monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
@@ -232,11 +261,13 @@ def test_post_editing_stream_passes_parameters_to_service(client, mem_db, monkey
 
     captured = {}
 
-    def fake_stream_edit(system_prompt, draft, transcript=None, messages=None, parameters=None):
+    def fake_stream_edit(
+        system_prompt, draft, transcript=None, messages=None, parameters=None
+    ):
         captured["parameters"] = parameters
         return iter(mock_chunks)
 
-    with patch("editing_service.stream_edit", side_effect=fake_stream_edit):
+    with patch("video2blog.editing_service.stream_edit", side_effect=fake_stream_edit):
         client.post(
             "/editing/stream",
             json={
@@ -249,7 +280,9 @@ def test_post_editing_stream_passes_parameters_to_service(client, mem_db, monkey
     assert captured.get("parameters") == {"section": "Introduction"}
 
 
-def test_post_editing_stream_validates_required_parameter(client, mem_db, monkeypatch, tmp_path):
+def test_post_editing_stream_validates_required_parameter(
+    client, mem_db, monkeypatch, tmp_path
+):
     """POST /editing/stream returns 400 when a required parameter is missing."""
     monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
     monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
@@ -295,7 +328,9 @@ def test_post_editing_stream_accepts_request_when_required_param_provided(
     draft_id = db_service.create_draft("vid-12", "Talk", "Draft.")
     mock_chunks = [b'data: {"done": true}\n\n']
 
-    with patch("editing_service.stream_edit", return_value=iter(mock_chunks)):
+    with patch(
+        "video2blog.editing_service.stream_edit", return_value=iter(mock_chunks)
+    ):
         resp = client.post(
             "/editing/stream",
             json={
@@ -317,11 +352,13 @@ def test_post_editing_stream_prepends_mode_label_to_prompt(client, mem_db, monke
 
     captured = {}
 
-    def fake_stream_edit(system_prompt, draft, transcript=None, messages=None, parameters=None):
+    def fake_stream_edit(
+        system_prompt, draft, transcript=None, messages=None, parameters=None
+    ):
         captured["system_prompt"] = system_prompt
         return iter(mock_chunks)
 
-    with patch("editing_service.stream_edit", side_effect=fake_stream_edit):
+    with patch("video2blog.editing_service.stream_edit", side_effect=fake_stream_edit):
         client.post(
             "/editing/stream",
             json={

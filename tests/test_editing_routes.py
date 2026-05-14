@@ -14,10 +14,11 @@ import pytest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import db_service
+from video2blog import db_service
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def mem_db():
@@ -29,8 +30,7 @@ def mem_db():
     def patched_get_db():
         yield conn
 
-    with patch.object(db_service, "get_db", patched_get_db), \
-         patch("os.makedirs"):
+    with patch.object(db_service, "get_db", patched_get_db), patch("os.makedirs"):
         db_service.init_db()
         yield conn
 
@@ -40,13 +40,15 @@ def mem_db():
 @pytest.fixture()
 def client(mem_db):
     """Flask test client wired to the in-memory DB."""
-    from web_app import app
+    from video2blog.web_app import app
+
     app.config["TESTING"] = True
     with app.test_client() as c:
         yield c
 
 
 # ── POST /editing/drafts ──────────────────────────────────────────────────────
+
 
 def test_post_editing_drafts_returns_201(client):
     """POST /editing/drafts with valid payload returns 201 and a draft_id."""
@@ -72,6 +74,7 @@ def test_post_editing_drafts_missing_fields_returns_400(client):
 
 # ── GET /editing/drafts/<draft_id> ────────────────────────────────────────────
 
+
 def test_get_editing_draft_returns_draft_dict(client):
     """GET /editing/drafts/<id> returns the draft as a JSON dict."""
     post_resp = client.post(
@@ -94,6 +97,7 @@ def test_get_editing_draft_unknown_id_returns_404(client):
 
 
 # ── PUT /editing/drafts/<draft_id> ────────────────────────────────────────────
+
 
 def test_put_editing_draft_updates_content(client, mem_db):
     """PUT /editing/drafts/<id> persists the new content."""
@@ -129,6 +133,7 @@ def test_put_editing_draft_creates_version(client, mem_db):
 
 # ── GET /editor ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.skip(reason="Pending Hudson's editor.html template (squad/14-editor-ui)")
 def test_get_editor_renders_template(client):
     """GET /editor?draft_id=<id> renders editor.html (200)."""
@@ -159,6 +164,7 @@ def test_get_editor_with_unknown_draft_id_returns_404(client):
 
 # ── GET /editing/skills ───────────────────────────────────────────────────────
 
+
 def test_get_editing_skills_returns_list(client):
     """GET /editing/skills returns a JSON list of available skills."""
     resp = client.get("/editing/skills")
@@ -171,6 +177,7 @@ def test_get_editing_skills_returns_list(client):
 
 
 # ── GET /editing/skill/<name> ─────────────────────────────────────────────────
+
 
 def test_get_editing_skill_returns_prompt(client):
     """GET /editing/skill/<name> returns the skill prompt body."""
@@ -188,6 +195,7 @@ def test_get_editing_skill_nonexistent_returns_404(client):
 
 
 # ── GET /editing/drafts/<draft_id>/versions ──────────────────────────────────
+
 
 def test_list_versions_ok(client):
     """GET /editing/drafts/<id>/versions returns 200 + list."""
@@ -213,6 +221,7 @@ def test_list_versions_not_found(client):
 
 
 # ── POST /editing/drafts/<draft_id>/restore/<version_id> ─────────────────────
+
 
 def test_restore_version_ok(client, mem_db):
     """POST restore returns 200 + updated draft."""
