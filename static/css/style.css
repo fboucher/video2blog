@@ -1579,3 +1579,101 @@ footer a {
 footer a:hover {
     color: var(--ctp-mocha-pink);
 }
+
+/* Keyframes List */
+.keyframes-list {
+    background: var(--ctp-mocha-surface0);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.keyframes-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--ctp-mocha-overlay1);
+    font-style: italic;
+}
+
+.keyframe-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    margin-bottom: 4px;
+    background: var(--ctp-mocha-base);
+    border-radius: 6px;
+    border: 1px solid var(--ctp-mocha-surface1);
+    transition: all 0.2s ease;
+}
+
+.keyframe-row:hover {
+    border-color: var(--ctp-mocha-blue);
+}
+
+.keyframe-row input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--ctp-mocha-blue);
+}
+
+.keyframe-row .keyframe-timestamp {
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 8px;
+    color: var(--ctp-mocha-text);
+    font-family: monospace;
+    font-size: 0.95rem;
+}
+
+.keyframe-row .keyframe-timestamp:hover,
+.keyframe-row .keyframe-timestamp:focus {
+    border-color: var(--ctp-mocha-surface2);
+    background: var(--ctp-mocha-surface0);
+    outline: none;
+}
+
+.keyframe-row .keyframe-label {
+    font-size: 0.85rem;
+    color: var(--ctp-mocha-subtext0);
+    white-space: nowrap;
+}
+
+.keyframe-row .btn-delete-keyframe {
+    background: none;
+    border: none;
+    color: var(--ctp-mocha-red);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
+}
+
+.keyframe-row .btn-delete-keyframe:hover {
+    opacity: 1;
+    background: rgba(243, 139, 168, 0.1);
+}
+
+.keyframes-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.keyframes-actions .btn {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+}
+
+.keyframe-row.keyframe-disabled {
+    opacity: 0.4;
+}

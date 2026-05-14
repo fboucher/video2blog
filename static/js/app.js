@@ -403,32 +403,28 @@ async function selectVideo(video) {
     resultsSection.style.display = 'none';
     
     // Handle params section differently for URL vs local videos
-    if (video.source === 'url') {
-        // Hide the normal params and show URL-specific message
-        const timestampParams = document.getElementById('timestamp-params');
-        if (timestampParams) {
-            timestampParams.style.display = 'none';
-        }
-        // Update extract button for URL videos
-        const originalExtractBtn = document.getElementById('extract-btn');
-        if (originalExtractBtn) {
-            originalExtractBtn.disabled = false;
+    const timestampParams = document.getElementById('timestamp-params');
+    if (timestampParams) {
+        timestampParams.style.display = 'grid';
+    }
+
+    // Show/hide Auto-Detect based on video source
+    const autoDetectBtn = document.getElementById('auto-detect-btn');
+    if (autoDetectBtn) {
+        autoDetectBtn.style.display = video.source === 'url' ? 'none' : '';
+    }
+
+    // Update extract button text based on source
+    const originalExtractBtn = document.getElementById('extract-btn');
+    if (originalExtractBtn) {
+        originalExtractBtn.disabled = false;
+        if (video.source === 'url') {
             originalExtractBtn.innerHTML = `
                 <span class="material-symbols-rounded">download</span>
                 Extract Frames (downloads video)
             `;
             originalExtractBtn.title = 'Download the video via yt-dlp and extract keyframes';
-        }
-    } else {
-        // Show normal params for local videos
-        const timestampParams = document.getElementById('timestamp-params');
-        if (timestampParams) {
-            timestampParams.style.display = 'grid';
-        }
-        // Reset extract button
-        const originalExtractBtn = document.getElementById('extract-btn');
-        if (originalExtractBtn) {
-            originalExtractBtn.disabled = false;
+        } else {
             originalExtractBtn.innerHTML = 'Extract Frames';
             originalExtractBtn.title = '';
         }
@@ -602,11 +598,11 @@ async function handleUrlExtraction() {
     progress.classList.remove('hidden');
     resultsContent.classList.add('hidden');
 
-    // Pass AI-suggested timestamps if available so extraction uses them
-    const timestampsInput = document.getElementById('timestamps').value.trim();
+    // Pass selected keyframe timestamps if available
+    const selectedTimestamps = getSelectedTimestamps();
     const body = { filename };
-    if (timestampsInput) {
-        body.timestamps = timestampsInput;
+    if (selectedTimestamps.length > 0) {
+        body.timestamps = selectedTimestamps.join(',');
         body.frames_per_timestamp = parseInt(document.getElementById('frames-per-timestamp').value) || 1;
     }
 
@@ -636,58 +632,178 @@ async function handleUrlExtraction() {
 }
 
 // Extraction Handler
+// Keyframe List Management
+function getKeyframesList() {
+    return document.getElementById('keyframes-list');
+}
+
+function getSelectedTimestamps() {
+    const rows = document.querySelectorAll('.keyframe-row');
+    const timestamps = [];
+    rows.forEach(row => {
+        const checkbox = row.querySelector('input[type="checkbox"]');
+        const input = row.querySelector('.keyframe-timestamp');
+        if (checkbox && checkbox.checked && input) {
+            const val = parseFloat(input.value);
+            if (!isNaN(val) && val >= 0) {
+                timestamps.push(val);
+            }
+        }
+    });
+    return timestamps;
+}
+
+function renderKeyframeList(timestamps, checked = true) {
+    const list = getKeyframesList();
+    if (!timestamps || timestamps.length === 0) {
+        // Always keep at least one empty row so user can type immediately
+        list.innerHTML = `
+            <div class="keyframe-row" data-index="0">
+                <input type="checkbox" checked title="Include this keyframe">
+                <input type="number" class="keyframe-timestamp" value="" placeholder="0.0" step="0.1" min="0" title="Timestamp in seconds">
+                <span class="keyframe-label">s</span>
+                <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                </button>
+            </div>
+        `;
+        return;
+    }
+    list.innerHTML = timestamps.map((ts, idx) => `
+        <div class="keyframe-row" data-index="${idx}">
+            <input type="checkbox" ${checked ? 'checked' : ''} title="Include this keyframe">
+            <input type="number" class="keyframe-timestamp" value="${ts}" step="0.1" min="0" title="Timestamp in seconds">
+            <span class="keyframe-label">s</span>
+            <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+            </button>
+        </div>
+    `).join('');
+}
+
+function addKeyframeRow(timestamp = 0) {
+    const list = getKeyframesList();
+    const emptyMsg = list.querySelector('.keyframes-empty');
+    if (emptyMsg) emptyMsg.remove();
+
+    const idx = list.querySelectorAll('.keyframe-row').length;
+    const row = document.createElement('div');
+    row.className = 'keyframe-row';
+    row.dataset.index = idx;
+    row.innerHTML = `
+        <input type="checkbox" checked title="Include this keyframe">
+        <input type="number" class="keyframe-timestamp" value="${timestamp}" step="0.1" min="0" title="Timestamp in seconds">
+        <span class="keyframe-label">s</span>
+        <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+            <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+        </button>
+    `;
+    list.appendChild(row);
+}
+
+function removeKeyframeRow(button) {
+    const row = button.closest('.keyframe-row');
+    if (row) {
+        row.remove();
+        // Always keep at least one empty row
+        const list = getKeyframesList();
+        if (list.querySelectorAll('.keyframe-row').length === 0) {
+            const emptyRow = document.createElement('div');
+            emptyRow.className = 'keyframe-row';
+            emptyRow.dataset.index = 0;
+            emptyRow.innerHTML = `
+                <input type="checkbox" checked title="Include this keyframe">
+                <input type="number" class="keyframe-timestamp" value="" placeholder="0.0" step="0.1" min="0" title="Timestamp in seconds">
+                <span class="keyframe-label">s</span>
+                <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                </button>
+            `;
+            list.appendChild(emptyRow);
+        }
+    }
+}
+
+async function autoDetectKeyframes() {
+    if (!currentVideo || !currentVideo.filepath) {
+        showToast('Please select a local video first', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('auto-detect-btn');
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-rounded" style="animation: spin 1s linear infinite;">sync</span> Detecting...';
+
+    try {
+        const response = await fetch('/api/preview-keyframes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                filepath: currentVideo.filepath,
+                threshold: 0.3,
+                max_frames: 100
+            })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            showToast(data.error, 'error');
+            return;
+        }
+
+        if (data.timestamps && data.timestamps.length > 0) {
+            renderKeyframeList(data.timestamps, true);
+            showToast(`Detected ${data.count} scene changes`, 'success');
+        } else {
+            showToast('No scene changes detected', 'info');
+        }
+    } catch (error) {
+        showToast('Auto-detect failed: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+    }
+}
+
 async function handleExtraction() {
     if (!currentVideo) {
         showToast('Please select a video first', 'error');
         return;
     }
-    
+
     if (currentVideo.source === 'url') {
         await handleUrlExtraction();
         return;
     }
-    
+
     if (!currentVideo.filepath) {
         showToast('Please select a video with local copy first', 'error');
         return;
     }
-    
-    const timestampsInput = document.getElementById('timestamps').value;
-    
-    if (!timestampsInput) {
-        showToast('Please enter timestamps', 'error');
+
+    const timestamps = getSelectedTimestamps();
+
+    if (timestamps.length === 0) {
+        showToast('Please select at least one keyframe', 'error');
         return;
     }
-    
-    // Parse timestamps and convert to floats
-    let timestamps;
-    try {
-        timestamps = timestampsInput.split(',').map(ts => {
-            const num = parseFloat(ts.trim());
-            if (isNaN(num)) {
-                throw new Error(`Invalid timestamp: ${ts.trim()}`);
-            }
-            return num;
-        }).join(',');
-    } catch (error) {
-        showToast(error.message, 'error');
-        return;
-    }
-    
+
     const params = {
         filepath: currentVideo.filepath,
         mode: 'timestamp',
-        timestamps: timestamps,
+        timestamps: timestamps.join(','),
         frames_per_timestamp: parseInt(document.getElementById('frames-per-timestamp').value)
     }
-    
+
     try {
         extractBtn.disabled = true;
         resultsSection.style.display = 'block';
         progress.classList.remove('hidden');
         resultsContent.classList.add('hidden');
         resultsContent.innerHTML = '';
-        
+
         const response = await fetch('/extract', {
             method: 'POST',
             headers: {
@@ -695,17 +811,17 @@ async function handleExtraction() {
             },
             body: JSON.stringify(params)
         });
-        
+
         const data = await response.json();
-        
+
         if (data.error) {
             showToast(data.error, 'error');
             return;
         }
-        
+
         displayResults(data);
         showToast('Frames extracted successfully!', 'success');
-        
+
     } catch (error) {
         showToast('Extraction failed: ' + error.message, 'error');
     } finally {
@@ -901,20 +1017,22 @@ async function sendChatMessage() {
         // Extract answer from response
         let answer = data.answer || 'No response received';
         
-        // Auto-extract timestamps from AI response
+        // Auto-extract timestamps from AI response and populate keyframe list
+        let aiTimestamps = [];
         const timestampMatch = answer.match(/TIMESTAMPS:\s*([\d.,\s]+)/i);
         if (timestampMatch) {
-            const timestampsValue = timestampMatch[1].trim().replace(/,\s*$/, '');
-            document.getElementById('timestamps').value = timestampsValue;
-            document.getElementById('params-section').style.display = '';
+            aiTimestamps = timestampMatch[1].trim().replace(/,\s*$/, '').split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
         } else {
             // Fallback: extract unique timestamps from KEYFRAME_[seconds] patterns
             const keyframeMatches = [...answer.matchAll(/KEYFRAME_([\d.]+)/g)];
             if (keyframeMatches.length > 0) {
-                const uniqueTimestamps = [...new Set(keyframeMatches.map(m => m[1]))];
-                document.getElementById('timestamps').value = uniqueTimestamps.join(', ');
-                document.getElementById('params-section').style.display = '';
+                aiTimestamps = [...new Set(keyframeMatches.map(m => parseFloat(m[1])))].filter(n => !isNaN(n));
             }
+        }
+
+        if (aiTimestamps.length > 0) {
+            renderKeyframeList(aiTimestamps, true);
+            document.getElementById('params-section').style.display = '';
         }
 
         // Add assistant message
