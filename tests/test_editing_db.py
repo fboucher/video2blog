@@ -10,10 +10,11 @@ import pytest
 from contextlib import contextmanager
 from unittest.mock import patch
 
-import db_service
+from video2blog import db_service
 
 
 # ── Fixture ───────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def mem_db():
@@ -28,8 +29,7 @@ def mem_db():
     def patched_get_db():
         yield conn
 
-    with patch.object(db_service, "get_db", patched_get_db), \
-         patch("os.makedirs"):
+    with patch.object(db_service, "get_db", patched_get_db), patch("os.makedirs"):
         db_service.init_db()
         yield conn
 
@@ -38,12 +38,20 @@ def mem_db():
 
 # ── Schema ────────────────────────────────────────────────────────────────────
 
+
 def test_drafts_table_exists(mem_db):
     """init_db() must create the drafts table."""
     rows = mem_db.execute("PRAGMA table_info(drafts)").fetchall()
     names = [r["name"] for r in rows]
-    for col in ("id", "video_id", "video_name", "content", "transcript",
-                "created_at", "updated_at"):
+    for col in (
+        "id",
+        "video_id",
+        "video_name",
+        "content",
+        "transcript",
+        "created_at",
+        "updated_at",
+    ):
         assert col in names, f"Column '{col}' missing from drafts table"
 
 
@@ -56,6 +64,7 @@ def test_draft_versions_table_exists(mem_db):
 
 
 # ── create_draft ──────────────────────────────────────────────────────────────
+
 
 def test_create_draft_returns_id(mem_db):
     """create_draft() should return a positive integer id."""
@@ -76,6 +85,7 @@ def test_create_draft_persists_row(mem_db):
 
 # ── get_draft ─────────────────────────────────────────────────────────────────
 
+
 def test_get_draft_returns_dict(mem_db):
     """get_draft() should return a dict for an existing draft."""
     draft_id = db_service.create_draft("vid-002", "Talk", "Draft content")
@@ -92,6 +102,7 @@ def test_get_draft_returns_none_for_missing(mem_db):
 
 
 # ── update_draft ──────────────────────────────────────────────────────────────
+
 
 def test_update_draft_changes_content(mem_db):
     """update_draft() should replace the draft content."""
@@ -133,6 +144,7 @@ def test_update_draft_with_skill_used(mem_db):
 
 # ── list_draft_versions ───────────────────────────────────────────────────────
 
+
 def test_list_draft_versions_returns_newest_first(mem_db):
     """list_draft_versions() should return versions ordered newest-first."""
     draft_id = db_service.create_draft("vid-006", "Video", "v1")
@@ -152,6 +164,7 @@ def test_list_draft_versions_empty_for_untouched_draft(mem_db):
 
 
 # ── restore_draft_version ─────────────────────────────────────────────────────
+
 
 def test_restore_draft_version_restores_content(mem_db):
     """restore_draft_version() should set draft content to the chosen version."""

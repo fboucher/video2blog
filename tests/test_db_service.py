@@ -11,10 +11,11 @@ from contextlib import contextmanager
 from unittest.mock import patch
 from datetime import datetime
 
-import db_service
+from video2blog import db_service
 
 
 # ── Fixture ───────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def mem_db():
@@ -30,8 +31,7 @@ def mem_db():
     def patched_get_db():
         yield conn
 
-    with patch.object(db_service, "get_db", patched_get_db), \
-         patch("os.makedirs"):
+    with patch.object(db_service, "get_db", patched_get_db), patch("os.makedirs"):
         db_service.init_db()
         yield conn
 
@@ -46,6 +46,7 @@ def _get_column_names(conn, table="video_sync"):
 
 # ── Schema: Reka columns must be gone ────────────────────────────────────────
 
+
 def test_no_reka_columns_in_schema(mem_db):
     """After init_db, no Reka-era columns should exist in video_sync."""
     columns = _get_column_names(mem_db)
@@ -59,6 +60,7 @@ def test_no_reka_columns_in_schema(mem_db):
 
 # ── Schema: Gemini columns must exist ────────────────────────────────────────
 
+
 def test_gemini_columns_exist_in_schema(mem_db):
     """After init_db, gemini_file_uri and gemini_uploaded_at must be columns."""
     columns = _get_column_names(mem_db)
@@ -71,6 +73,7 @@ def test_gemini_columns_exist_in_schema(mem_db):
 
 
 # ── update_gemini_upload ──────────────────────────────────────────────────────
+
 
 def test_update_gemini_upload_stores_uri_and_timestamp(mem_db):
     """
@@ -102,6 +105,7 @@ def test_update_gemini_upload_stores_uri_and_timestamp(mem_db):
 
 # ── get_gemini_file_info ──────────────────────────────────────────────────────
 
+
 def test_get_gemini_file_info_returns_none_when_not_set(mem_db):
     """get_gemini_file_info should return None for an unknown filename."""
     result = db_service.get_gemini_file_info("nonexistent.mp4")
@@ -116,9 +120,12 @@ def test_get_gemini_file_info_returns_dict_when_set(mem_db):
     mem_db.execute(
         "INSERT INTO video_sync (local_filename, video_name, gemini_file_uri, gemini_uploaded_at)"
         " VALUES (?, ?, ?, ?)",
-        ("keynote.mp4", "Keynote 2026",
-         "https://generativelanguage.googleapis.com/v1/files/kn2026",
-         "2026-05-07 12:00:00"),
+        (
+            "keynote.mp4",
+            "Keynote 2026",
+            "https://generativelanguage.googleapis.com/v1/files/kn2026",
+            "2026-05-07 12:00:00",
+        ),
     )
     mem_db.commit()
 
