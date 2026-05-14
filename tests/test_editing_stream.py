@@ -56,6 +56,7 @@ def client(mem_db):
 def test_is_configured_false_when_no_api_key(monkeypatch):
     """is_configured() returns False when EDITING_API_KEY is not set."""
     monkeypatch.delenv("EDITING_API_KEY", raising=False)
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -65,6 +66,7 @@ def test_is_configured_false_when_no_api_key(monkeypatch):
 def test_is_configured_true_when_api_key_set(monkeypatch):
     """is_configured() returns True when EDITING_API_KEY has a non-empty value."""
     monkeypatch.setenv("EDITING_API_KEY", "sk-test-key")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -74,6 +76,7 @@ def test_is_configured_true_when_api_key_set(monkeypatch):
 def test_is_configured_false_when_api_key_empty_string(monkeypatch):
     """is_configured() returns False when EDITING_API_KEY is set to empty string."""
     monkeypatch.setenv("EDITING_API_KEY", "")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -86,6 +89,7 @@ def test_is_configured_false_when_api_key_empty_string(monkeypatch):
 def test_get_provider_returns_anthropic_by_default(monkeypatch):
     """get_provider() returns 'anthropic' when EDITING_PROVIDER is not set."""
     monkeypatch.delenv("EDITING_PROVIDER", raising=False)
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -95,6 +99,7 @@ def test_get_provider_returns_anthropic_by_default(monkeypatch):
 def test_get_provider_returns_anthropic_when_set(monkeypatch):
     """get_provider() returns 'anthropic' when EDITING_PROVIDER=anthropic."""
     monkeypatch.setenv("EDITING_PROVIDER", "anthropic")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -104,6 +109,7 @@ def test_get_provider_returns_anthropic_when_set(monkeypatch):
 def test_get_provider_returns_openai_when_set(monkeypatch):
     """get_provider() returns 'openai' when EDITING_PROVIDER=openai."""
     monkeypatch.setenv("EDITING_PROVIDER", "openai")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 
@@ -113,6 +119,7 @@ def test_get_provider_returns_openai_when_set(monkeypatch):
 def test_get_provider_normalizes_to_lowercase(monkeypatch):
     """get_provider() normalizes the env var value to lowercase."""
     monkeypatch.setenv("EDITING_PROVIDER", "Anthropic")
+    monkeypatch.setattr("video2blog.db_service.get_active_connection", lambda: None)
 
     from video2blog import editing_service
 

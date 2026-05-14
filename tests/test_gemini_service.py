@@ -6,6 +6,7 @@ tests run without network access or a real API key.
 """
 
 import os
+from types import SimpleNamespace
 import pytest
 from unittest.mock import MagicMock, patch
 
@@ -72,6 +73,9 @@ def test_upload_video_calls_files_api():
     fake_file.uri = "files/abc123"
     fake_file.name = "abc123"
     fake_file.state.name = "ACTIVE"  # not "PROCESSING" → no wait loop
+    fake_file.video_metadata = SimpleNamespace(
+        duration_millis=5000
+    )  # break metadata wait loop
 
     mock_client = MagicMock()
     mock_client.files.upload.return_value = fake_file
