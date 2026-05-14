@@ -660,7 +660,17 @@ function getSelectedTimestamps() {
 function renderKeyframeList(timestamps, checked = true) {
     const list = getKeyframesList();
     if (!timestamps || timestamps.length === 0) {
-        list.innerHTML = '<div class="keyframes-empty">No keyframes yet. Chat with AI to get suggestions, or use Auto-Detect.</div>';
+        // Always keep at least one empty row so user can type immediately
+        list.innerHTML = `
+            <div class="keyframe-row" data-index="0">
+                <input type="checkbox" checked title="Include this keyframe">
+                <input type="number" class="keyframe-timestamp" value="" placeholder="0.0" step="0.1" min="0" title="Timestamp in seconds">
+                <span class="keyframe-label">s</span>
+                <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                </button>
+            </div>
+        `;
         return;
     }
     list.innerHTML = timestamps.map((ts, idx) => `
@@ -699,10 +709,21 @@ function removeKeyframeRow(button) {
     const row = button.closest('.keyframe-row');
     if (row) {
         row.remove();
-        // If no rows left, show empty message
+        // Always keep at least one empty row
         const list = getKeyframesList();
         if (list.querySelectorAll('.keyframe-row').length === 0) {
-            list.innerHTML = '<div class="keyframes-empty">No keyframes yet. Chat with AI to get suggestions, or use Auto-Detect.</div>';
+            const emptyRow = document.createElement('div');
+            emptyRow.className = 'keyframe-row';
+            emptyRow.dataset.index = 0;
+            emptyRow.innerHTML = `
+                <input type="checkbox" checked title="Include this keyframe">
+                <input type="number" class="keyframe-timestamp" value="" placeholder="0.0" step="0.1" min="0" title="Timestamp in seconds">
+                <span class="keyframe-label">s</span>
+                <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                    <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                </button>
+            `;
+            list.appendChild(emptyRow);
         }
     }
 }

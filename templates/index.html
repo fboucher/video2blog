@@ -113,7 +113,14 @@
                     <div class="form-group">
                         <label>Keyframes to Extract</label>
                         <div id="keyframes-list" class="keyframes-list">
-                            <div class="keyframes-empty">No keyframes yet. Chat with AI to get suggestions, or use Auto-Detect.</div>
+                            <div class="keyframe-row" data-index="0">
+                                <input type="checkbox" checked title="Include this keyframe">
+                                <input type="number" class="keyframe-timestamp" value="" placeholder="0.0" step="0.1" min="0" title="Timestamp in seconds">
+                                <span class="keyframe-label">s</span>
+                                <button class="btn-delete-keyframe" onclick="removeKeyframeRow(this)" title="Remove">
+                                    <span class="material-symbols-rounded" style="font-size: 18px;">delete</span>
+                                </button>
+                            </div>
                         </div>
                         <div class="keyframes-actions">
                             <button id="add-keyframe-btn" class="btn btn-secondary" onclick="addKeyframeRow()">
