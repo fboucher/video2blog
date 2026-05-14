@@ -111,14 +111,25 @@
 
                 <div id="timestamp-params" class="params-group">
                     <div class="form-group">
-                        <label for="timestamps">Timestamps (seconds)</label>
-                        <input type="text" id="timestamps" placeholder="10.5, 25, 60.3">
-                        <small>Comma-separated list of timestamps in seconds (decimals or integers)</small>
+                        <label>Keyframes to Extract</label>
+                        <div id="keyframes-list" class="keyframes-list">
+                            <div class="keyframes-empty">No keyframes yet. Chat with AI to get suggestions, or use Auto-Detect.</div>
+                        </div>
+                        <div class="keyframes-actions">
+                            <button id="add-keyframe-btn" class="btn btn-secondary" onclick="addKeyframeRow()">
+                                <span class="material-symbols-rounded">add</span>
+                                Add Keyframe
+                            </button>
+                            <button id="auto-detect-btn" class="btn btn-secondary" onclick="autoDetectKeyframes()">
+                                <span class="material-symbols-rounded">auto_fix</span>
+                                Auto-Detect Scenes
+                            </button>
+                        </div>
                     </div>
                     <div class="form-group">
-                        <label for="frames-per-timestamp">Frames per Timestamp</label>
+                        <label for="frames-per-timestamp">Frames per Keyframe</label>
                         <input type="number" id="frames-per-timestamp" value="1" min="1" max="5">
-                        <small>Number of frames to extract around each timestamp</small>
+                        <small>Number of frames to extract around each selected timestamp</small>
                     </div>
                 </div>
 
