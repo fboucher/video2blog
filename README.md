@@ -14,7 +14,8 @@ docker compose up -d
 
 Open [http://localhost:5123](http://localhost:5123).
 
-See [docs/](docs/index.md) for the full workflow guide.
+See [docs/](docs/index.md) for the full workflow guide.  
+To run without Docker, see the [Development guide](docs/development.md#local-setup-without-docker).
 
 ## Environment Variables
 
